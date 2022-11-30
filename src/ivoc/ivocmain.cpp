@@ -845,6 +845,10 @@ int ivocmain_session(int argc, const char** argv, const char** env, int start_se
 #endif
     hoc_final_exit();
     ivoc_final_exit();
+
+    // leigh - need to destroy the shared memory segment here upon exit of the HOC interpreter
+    // shmdt(neuron_shared);
+
     return exit_status;
 }
 

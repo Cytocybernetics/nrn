@@ -130,6 +130,8 @@ void nrn_div_capacity(NrnThread* _nt, Memb_list* ml) {
         for (i = 0; i < count; ++i) {
             p[vnode[i]->v_node_index] += i_cap;
         }
+
+ 	 	printf("Membrane Current = %g\n", _nt->_nrn_fast_imem->_nrn_sav_rhs[0]);	// leigh
     }
 }
 
