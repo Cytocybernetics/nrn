@@ -436,7 +436,7 @@ xvalue("Continue for", "runStopIn", 1, "{continuerun(t + runStopIn) stoprun=1}",
 	xvalue("Points plotted/ms", "steps_per_ms", 1, "setdt()", 0, 1)
 	xpvalue("Scrn update invl", &screen_update_invl, 1)
 //	xcheckbox("Quiet", &stdrun_quiet)
-	xpvalue("Real Time", &realtime)
+	xpvalue("Real Time", &realtime)		/* leigh - this is where the realtime entry is populated */
     xpanel()
 }
 
@@ -457,7 +457,7 @@ proc stdinit() {
 }
 
 proc init() {
-	finitialize(v_init)
+	finitialize(v_init) /* leigh - This is the initial membrane voltage specified on the GUI */
 	// fcurrent() // no longer necessary. finitialize now
 	// initializes all conductances and currents as well as states.
 	// Extra initialization should normally go here.
@@ -486,6 +486,7 @@ proc set_ra() {/* this alleviates the backward compatibility problems */
 	forall Ra = global_ra
 }
 
+/* leigh - below */
 proc runbutton() {
 	if (running_ == 0) {
 		stoprun = 1
@@ -538,7 +539,7 @@ proc continuerun() {local rt, rtstart, ts
 	}else{
 		ts = $1 - dt/2
 	}
-	while(t < ts && stoprun == 0) {
+	while(t < ts && stoprun == 0) {		/* leigh - there is where the realtime value is calculated */
 		step()
 		realtime = startsw() - rtstart
 		if (realtime >= rt) {
@@ -562,6 +563,9 @@ proc steprun() {
 }
 
 proc step() {local i
+
+    //print "Performing a step from GUI in stdrun.hoc" /* leigh */
+
 	if (using_cvode_) {
 		advance()
 	}else for i=1,nstep_steprun {
@@ -573,6 +577,7 @@ proc step() {local i
 proc advance() {
 	fadvance()
 }
+/* leigh - above */
 
 proc cvode_simgraph() {local i, j
 	cvode.simgraph_remove()

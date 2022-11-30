@@ -392,6 +392,15 @@ void nrn_solve(NrnThread* _nt) {
 	printf("\nnrn_solve leave %lx\n", (long)_nt);
 	nrn_print_matrix(_nt);
 #endif
+
+    // leigh - below
+/*
+    if (_nt->_actual_v != NULL)
+        printf("NrnThread->_actual_v: %g\n", *(_nt->_actual_v));
+    else
+        printf("NrnThread->_actual_v: NULL\n");
+*/
+    // leigh - above
 }
 
 /* triangularization of the matrix equations */

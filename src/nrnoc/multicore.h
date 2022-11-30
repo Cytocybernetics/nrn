@@ -47,6 +47,12 @@ typedef struct _nrn_Fast_Imem {
     double* _nrn_sav_d;
 } _nrn_Fast_Imem;
 
+// leigh - header additions below
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/resource.h>
+#include "/home/cytocybernetics/Cybercyte/DC1/Codes/shared_mem.h"
+// leigh - header additions above
 
 /**
  * \class NrnThread
@@ -83,6 +89,9 @@ struct NrnThread {
     Node** _ecell_children;      /* nodes with no extcell but parent has it */
     _nrn_Fast_Imem* _nrn_fast_imem;
     void* _vcv; /* replaces old cvode_instance and nrn_cvode_ */
+
+    // leigh - Shared memory structure for communicating between DC1 and Neuron program (see shared_mem.h)
+    neuron_shared_data *neuron_shared;
 
 #if 1
     double _ctime; /* computation time in seconds (using nrnmpi_wtime) */
