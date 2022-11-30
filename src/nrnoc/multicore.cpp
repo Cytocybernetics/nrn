@@ -278,6 +278,8 @@ void nrn_threads_create(int n, bool parallel) {
         nrn_nthread = n;
         if (n > 0) {
             CACHELINE_ALLOC(nrn_threads, NrnThread, n);
+
+            // leigh - NrnThread Initialization is here
             for (i = 0; i < n; ++i) {
                 nt = nrn_threads + i;
                 nt->_t = 0.;
@@ -309,6 +311,34 @@ void nrn_threads_create(int n, bool parallel) {
                 nt->_ctime = 0.0;
                 nt->_vcv = 0;
                 nt->_nrn_fast_imem = 0;
+
+				// leigh - below
+			  	// *** Setting up shared memory between Neuron and DC1 ***
+			  	// ftok to generate unique key
+			  	key_t key = ftok(SHM_NRN_TOKEN, SHM_NRN_ID);
+			  
+			  	int shmid = shmget(key, 1024, 0666 | IPC_CREAT);
+
+				nt->neuron_shared = (neuron_shared_data *) shmat(shmid, (void *) 0, 0);
+
+				double V_mem = 0;			// Membrane Voltage - Electronic Expression Mode
+				double I_mem = 0;			// Membrane Current - Synthetic Cell Mode
+				double dt = 0;				// Time step
+				int Neuron_DC1_Mode = 0;	// DC1 Mode
+
+				// NOTE: WE ARE NOT DIFFERENTIATING BETWEEN OUTPUT 1 OR 2 HERE!
+
+				pthread_mutex_lock(&nt->neuron_shared->ipc_mutex);
+				// Voltage = Voltage * Mag Factor * Inversion Factor
+				V_mem = nt->neuron_shared->V_mem_ch1 * nt->neuron_shared->chan1_nrn_mag * nt->neuron_shared->invertType1;
+				// Current = Current * Mag Factor * Inversion Factor
+				I_mem = nt->neuron_shared->I_mem_ch1 * nt->neuron_shared->chan1_nrn_mag * nt->neuron_shared->invertType1;
+				dt = nt->neuron_shared->msTime;
+				Neuron_DC1_Mode = nt->neuron_shared->Neuron_DC1_Mode;
+				pthread_mutex_unlock(&nt->neuron_shared->ipc_mutex);
+
+				printf("SHARED MEMORY: V_mem = %lf\tI_mem = %lf\tdt = %lf\tNeuron_DC1_Mode = %d\n", V_mem, I_mem, dt, Neuron_DC1_Mode);
+				// leigh - above
             }
         }
         v_structure_change = 1;
