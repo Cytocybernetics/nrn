@@ -75,6 +75,9 @@ extern double hoc_epsilon;
 
 static void update(NrnThread*);
 
+double dc1_time;
+double nrnclk[10];
+
 #define NRNCTIME          1
 #define NONVINT_ODE_COUNT 5
 
@@ -97,6 +100,7 @@ abruptly and arbitrarily sets a new value of t and continues from
 there (hence nrn_tbase_)
 */
 double nrn_ndt_, nrn_tbase_, nrn_dt_;
+
 void nrn_chk_ndt() {
     if (dt != nrn_dt_ || t != nrn_tbase_ + nrn_ndt_ * nrn_dt_) {
         if (nrnmpi_myid == 0)
@@ -476,7 +480,16 @@ double msTime = 0.0;
 
 // leigh - above
 
+static size_t realtime() {
+    timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    const size_t billion{1000000000};
+    const size_t floatmask{0Xfffffffffffff}; // 52 bits
+    return ((billion * ts.tv_sec) + ts.tv_nsec) & floatmask;
+}
+
 void* nrn_fixed_step_thread(NrnThread* nth) {
+    nrnclk[0] = realtime(); // entry
     double wt;
     {
         nrn::Instrumentor::phase p("deliver-events");
@@ -491,6 +504,7 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
 
       //printf("TRIGGERING DYNAMIC CLAMP MODE!\n");
       nth->_dt = nth->neuron_shared->msTime;
+      dt = nth->_dt;
       nth->_t += .5 * nth->_dt;
     } else {
 #if ELIMINATE_T_ROUNDOFF
@@ -579,9 +593,9 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         //*(nth->_v_node[0])->_rhs += nth->neuron_shared->I_mem_ch1/1000.0;
         //*(nth->_v_node[1])->_rhs += nth->neuron_shared->I_mem_ch1/10000.0;
         //*(nth->_v_node[1])->_rhs += nth->neuron_shared->I_mem_ch1 * (0.01 / nth->_v_node[1]->_area);
-        *(nth->_v_node[1])->_rhs += (nth->neuron_shared->I_mem_ch1 * nth->neuron_shared->chan1_nrn_mag * nth->neuron_shared->invertType1) * (-0.1 / nth->_v_node[1]->_area);
+        *(nth->_v_node[1])->_rhs += (nth->neuron_shared->I_mem_ch1 * nth->neuron_shared->chan1_nrn_mag * nth->neuron_shared->invertType_ch1) * (-0.1 / nth->_v_node[1]->_area);
 
-		//printf("NEURON MAG: %g\tINVERSION FACTOR: %d\n", nth->neuron_shared->chan1_nrn_mag, nth->neuron_shared->invertType1);
+		//printf("NEURON MAG: %g\tINVERSION FACTOR: %d\n", nth->neuron_shared->chan1_nrn_mag, nth->neuron_shared->invertType_ch1);
 
         //printf("Imem_ch1 = %lf\n", nth->neuron_shared->I_mem_ch1);  //mark
         //printf("nth->_v_node[1]->_area = %g\n", nth->_v_node[1]->_area);
@@ -591,7 +605,7 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
 
       } else if (nth->neuron_shared->Synthetic_Cell_Mode_ch2) {
         //*(nth->_v_node[1])->_rhs += nth->neuron_shared->I_mem_ch2 * (0.01 / nth->_v_node[1]->_area);
-        *(nth->_v_node[1])->_rhs += (nth->neuron_shared->I_mem_ch2 * nth->neuron_shared->chan2_nrn_mag * nth->neuron_shared->invertType2) * (-0.1 / nth->_v_node[1]->_area);
+        *(nth->_v_node[1])->_rhs += (nth->neuron_shared->I_mem_ch2 * nth->neuron_shared->chan2_nrn_mag * nth->neuron_shared->invertType_ch2) * (-0.1 / nth->_v_node[1]->_area);
       }
     }
 	pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
@@ -636,6 +650,7 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         nrn_fixed_step_lastpart(nth);
     }
 
+#if 0
     // leigh - below
 
 	clock_gettime(CLOCK_MONOTONIC, &end_ts);
@@ -664,8 +679,9 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
 
 	fclose(f);
 
+#endif
     // leigh - above
-
+    //nrnclk[9] = realtime(); // leave nrn_fixed_step_thread (this is after record so needs special processing)
     return nullptr;
 }
 
