@@ -330,9 +330,9 @@ void nrn_threads_create(int n, bool parallel) {
 
 				pthread_mutex_lock(&nt->neuron_shared->ipc_mutex);
 				// Voltage = Voltage * Mag Factor * Inversion Factor
-				V_mem = nt->neuron_shared->V_mem_ch1 * nt->neuron_shared->chan1_nrn_mag * nt->neuron_shared->invertType1;
+				V_mem = nt->neuron_shared->V_mem_ch1 * nt->neuron_shared->chan1_nrn_mag * nt->neuron_shared->invertType_ch1;
 				// Current = Current * Mag Factor * Inversion Factor
-				I_mem = nt->neuron_shared->I_mem_ch1 * nt->neuron_shared->chan1_nrn_mag * nt->neuron_shared->invertType1;
+				I_mem = nt->neuron_shared->I_mem_ch1 * nt->neuron_shared->chan1_nrn_mag * nt->neuron_shared->invertType_ch1;
 				dt = nt->neuron_shared->msTime;
 				Neuron_DC1_Mode = nt->neuron_shared->Neuron_DC1_Mode;
 				pthread_mutex_unlock(&nt->neuron_shared->ipc_mutex);
