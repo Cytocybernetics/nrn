@@ -1015,7 +1015,7 @@ static void warn_assign_dynam_unit(const char* name) {
     if (first) {
         char mes[100];
         first = 0;
-        sprintf(mes,
+        Sprintf(mes,
                 "Assignment to %s physical constant %s",
                 _nrnunit_use_legacy_ ? "legacy" : "modern",
                 name);
@@ -1335,7 +1335,7 @@ void frame_debug() {
     char id[10];
 
     if (nrnmpi_numprocs_world > 1) {
-        sprintf(id, "%d ", nrnmpi_myid_world);
+        Sprintf(id, "%d ", nrnmpi_myid_world);
     } else {
         id[0] = '\0';
     }
@@ -1655,14 +1655,13 @@ int hoc_argindex(void) {
     return j;
 }
 
-void arg(void) /* push argument onto stack */
-{
-    int i;
-    i = (pc++)->i;
+// push argument onto stack
+void hoc_arg() {
+    int i = (pc++)->i;
     if (i == 0) {
         i = hoc_argindex();
     }
-    hoc_pushx(*getarg(i));
+    hoc_pushx(*hoc_getarg(i));
 }
 
 void hoc_stringarg(void) /* push string arg onto stack */
@@ -2055,10 +2054,9 @@ void hoc_cyclic(void) /* the modulus function */
     hoc_pushx(r);
 }
 
-void negate(void) /* negate top element on stack */
-{
-    double d;
-    d = hoc_xpop();
+// negate top element on stack
+void hoc_negate() {
+    double const d = hoc_xpop();
     hoc_pushx(-d);
 }
 
@@ -2070,7 +2068,7 @@ void gt(void) {
     hoc_pushx(d1);
 }
 
-void lt(void) {
+void hoc_lt() {
     double d1, d2;
     d2 = hoc_xpop();
     d1 = hoc_xpop();
@@ -2428,17 +2426,17 @@ void prexpr() {
         s = hocstr_create(256);
     switch (hoc_stacktype()) {
     case NUMBER:
-        Sprintf(s->buf, "%.8g ", hoc_xpop());
+        std::snprintf(s->buf, s->size + 1, "%.8g ", hoc_xpop());
         break;
     case STRING:
         ss = *(hoc_strpop());
         hocstr_resize(s, strlen(ss) + 1);
-        Sprintf(s->buf, "%s ", ss);
+        std::snprintf(s->buf, s->size + 1, "%s ", ss);
         break;
     case OBJECTTMP:
     case OBJECTVAR:
         pob = hoc_objpop();
-        Sprintf(s->buf, "%s ", hoc_object_name(*pob));
+        std::snprintf(s->buf, s->size + 1, "%s ", hoc_object_name(*pob));
         hoc_tobj_unref(pob);
         break;
     default:
@@ -2455,7 +2453,7 @@ void prstr(void) /* print string value */
         s = hocstr_create(256);
     cpp = hoc_strpop();
     hocstr_resize(s, strlen(*cpp) + 10);
-    Sprintf(s->buf, "%s", *cpp);
+    std::snprintf(s->buf, s->size + 1, "%s", *cpp);
     plprint(s->buf);
 }
 
