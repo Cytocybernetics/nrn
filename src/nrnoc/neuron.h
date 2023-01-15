@@ -41,4 +41,4 @@ extern void nrnallsectionmenu(), nrnallpointmenu(), nrnsecmenu();
 extern void nrnglobalmechmenu(), nrnmechmenu(), nrnpointmenu();
 extern void this_section(), this_node(), parent_section(), parent_node();
 extern void parent_connection(), section_orientation();
-extern double dc1_time, nrnclk[10];
+extern double nrnclk[20], nrnval[20];
