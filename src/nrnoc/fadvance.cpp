@@ -585,6 +585,9 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
 
 	pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
     if (nth->neuron_shared->Neuron_DC1_Mode) {
+    
+      //  Synchronize execution with DC1
+      rendezvous(nth->neuron_shared);
 
       // Synthetic Cell Mode
       if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
