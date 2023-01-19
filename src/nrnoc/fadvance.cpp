@@ -488,6 +488,36 @@ static size_t realtime() {
     return ((billion * ts.tv_sec) + ts.tv_nsec) & floatmask;
 }
 
+void fill_dc1_array() { // 4 Vector args.
+    NrnThread* nth = nrn_threads;
+#if 0
+    size_t sz = nth->neuron_shared->dc1_loop_index;
+    size_t* p[4];
+    p[0] = nth->neuron_shared->dc1_time_array;
+    p[1] = nth->neuron_shared->dc1_wait_voltage_array;
+    p[2] = nth->neuron_shared->dc1_write_voltage_array;
+    p[3] = nth->neuron_shared->dc1_adc_read_array;
+    for (int iarg=0; iarg < 4; ++iarg) {
+        IvocVect* vec = vector_arg(iarg+1); // args start at 1
+        vector_resize(vec, sz);
+        double* pv = vector_vec(vec);
+        for (size_t i = 0; i < sz; ++i) {
+            pv[i] = p[iarg][i];
+        }
+    }
+#else
+    printf("sizeof neuron_shared %zd\n", sizeof(neuron_shared_data));
+    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
+    nth->neuron_shared->nrn_request_end_dc1_loop = 1;
+    pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
+    if (sem_post(&nth->neuron_shared->voltage_is_ready)) {
+        perror("nrn sem_post error");
+        abort();
+    }
+#endif
+    hoc_retpushx(1.0);
+}
+
 void* nrn_fixed_step_thread(NrnThread* nth) {
     nrnclk[0] = realtime();  // nrnFixedStepEntry
     double wt;

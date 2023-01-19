@@ -1,4 +1,7 @@
 # explore rawtime.dat without need for cybercyte specific code
+from read_dc1raw import read_dc1raw
+
+dc1clks = read_dc1raw()
 
 nrnclk_labels = [
     "nrnFixedStepEntry",  # 0
@@ -38,7 +41,7 @@ def readraw():
     return data
 
 
-nrnclks, nrnvals = readraw()
+nrnclks, nrnvals, foo = readraw()
 
 # first record values (finitialize) are useless
 for v in nrnclks:
@@ -49,14 +52,47 @@ for v in nrnvals:
 # translate all time vectors relative to first value of nrnFixedStepEntry
 torigin = nrnclks[0][0]
 for v in nrnclks:
-    if "nrnVoltageUpdateSimTime" != v.label():
-        v.sub(torigin)
+    v.sub(torigin)
 
-# Here are the first few times
-print("nrnclks")
-for v in nrnclks:
-    print(v[0], v[1], v[2], v[3], v[4], v.label())
+for v in dc1clks:
+    v.sub(torigin)
 
-print("nrnvals")
-for v in nrnvals:
-    print(v[0], v[1], v[2], v[3], v[4], v.label())
+
+def noncontiguous_dc1_indices():
+    print("dc1LoopIndex problems (adjacent difference != 1)")
+    ix = nrnvals[0].c().deriv(1, 1).indvwhere("!=", 1)
+    ix = [int(i) for i in ix]
+    print("context")
+    dc1_indices = [int(i) for i in nrnvals[0]]
+    iold = -100
+    for i in ix:
+        if i > iold + 2:
+            print(i, dc1_indices[i : i + 7])
+        iold = i
+
+
+noncontiguous_dc1_indices()
+
+
+def a(i):
+    # Print first few times starting at index i for each nrnclk vector
+    # shifted by the ith time of nrnFixedStepEntry
+    torigin = nrnclks[0][i]
+    print("nrnclks  torigin=", torigin)
+    for v in nrnclks:
+        print(v.c().sub(torigin).to_python()[i : i + 5], v.label())
+
+    print("nrnvals")
+    for v in nrnvals:
+        print(v.to_python()[i : i + 5], v.label())
+
+    print("dc1clks")
+    for v in dc1clks:
+        print(v.c().sub(torigin).to_python()[i : i + 5], v.label())
+
+
+"""
+a(0)
+a(339)
+a(17261)
+"""

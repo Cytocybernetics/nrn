@@ -46,6 +46,13 @@ nrnval_labels = [
     "nrnVoltageUpdateValue",  # 4 mV
 ]
 
+dc1_labels = [
+    "dc1_time_array",
+    "dc1_wait_voltage_array",
+    "dc1_write_voltage_array",
+    "dc1_adc_read_array",
+]
+
 nrnclks = [
     h.Vector().record(h._ref_nrnclk[i], sec=s).resize(50000).resize(0)
     for i in range(len(nrnclk_labels))
@@ -61,11 +68,15 @@ for i, v in enumerate(nrnvals):
     v.label(nrnval_labels[i])
 
 
+dc1clks = [h.Vector() for _ in range(4)]
+for i, v in enumerate(dc1clks):
+    v.label(dc1_labels[i])
+
 def writeraw():
     import pickle
 
     with open("rawtime.dat", "wb") as f:
-        pickle.dump((nrnclks, nrnvals), f)
+        pickle.dump((nrnclks, nrnvals, dc1clks), f)
 
 
 def readraw():
@@ -77,6 +88,8 @@ def readraw():
         v.label(nrnclk_labels[i])
     for i, v in enumerate(data[1]):
         v.label(nrnval_labels[i])
+    for i, v in enumerate(data[2]):
+        v.label(dc1_labels[i])
     return data
 
 
@@ -103,6 +116,7 @@ def run(tstop):
     pc.set_maxstep(1000)
     h.finitialize(-65)
     pc.psolve(tstop)
+    h.fill_dc1_array(*dc1clks)
     for g in gs:
         g.erase()
     dtvec.label("nrndt")
