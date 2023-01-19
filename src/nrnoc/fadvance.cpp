@@ -510,8 +510,8 @@ void fill_dc1_array() { // 4 Vector args.
     pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
     nth->neuron_shared->nrn_request_end_dc1_loop = 1;
     pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
-    if (sem_post(&nth->neuron_shared->voltage_is_ready)) {
-        perror("nrn sem_post error");
+    if (sem_post(&nth->neuron_shared->voltage_full)) {
+        perror("nrn sem_post error voltage full");
         abort();
     }
 #endif
@@ -596,11 +596,15 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         // Synthetic Cell Mode
         else if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
             // Voltage output is coming from Neuron
+            if (sem_wait(&nth->neuron_shared->voltage_empty)) {
+                perror("nrn sem_wait error voltage empty");
+                abort();
+            }
             nth->neuron_shared->V_mem_ch1 = *(nth->_v_node[1])->_v;
             // printf("nrn post voltage is ready\n");
             nrnclk[2] = realtime();  // nrnPostVoltageIsReady
-            if (sem_post(&nth->neuron_shared->voltage_is_ready)) {
-                perror("nrn sem_post error");
+            if (sem_post(&nth->neuron_shared->voltage_full)) {
+                perror("nrn sem_post error voltage full");
                 abort();
             }
         } else if (nth->neuron_shared->Synthetic_Cell_Mode_ch2) {
@@ -625,8 +629,8 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
         // printf("nrn wait for current_is_ready\n");
         nrnclk[3] = realtime();  // nrnWaitForCurrentIsReady
-        if (sem_wait(&nth->neuron_shared->current_is_ready)) {
-            perror("nrn sem_wait error");
+        if (sem_wait(&nth->neuron_shared->current_full)) {
+            perror("nrn sem_wait error current full");
             abort();
         }
         // printf("nrn continue from current_is_ready\n");
@@ -659,6 +663,10 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
             // printf("NrnThread->Node[0]->rhs: %g\n", *(nth->_v_node[0])->_rhs);
             // printf("NrnThread->Node[1]->rhs: %g\n\n", *(nth->_v_node[1])->_rhs);
 
+            if (sem_post(&nth->neuron_shared->current_empty)) {
+                perror("nrn sem_post error current empty");
+                abort();
+            }
         } else if (nth->neuron_shared->Synthetic_Cell_Mode_ch2) {
             //*(nth->_v_node[1])->_rhs += nth->neuron_shared->I_mem_ch2 * (0.01 /
             // nth->_v_node[1]->_area);

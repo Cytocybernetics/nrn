@@ -6,10 +6,13 @@
 #    Note: Despite GUI appearance, the DC1 loop is waiting on a
 #          semaphore so it can read voltage from NEURON.
 # 4) In nrniv terminal window type: prun()
+#     When neuron finishes, writeraw() will write the recorded vectors to rawtime.dat
+#     and h.fill_dc1_array() will have dc1 write its stored arrays to dc1rawtime.dat
 # 5) Press STOP button in CytoDC1 window.
 #    Note: after prun, the DC1 loop is waiting on a semaphore.
 #    It is likely necessary to sudo kill -1 CytoDC1 even after exiting CytoDC1 GUI.
-# 6) In nrniv terminal window (to allow offline analysis of run timings) type: po.writeraw()
+#
+# 6) Exit neuron or ...
 # 7) In each nrniv Graph, select View/View=plot
 
 from neuron import h, gui
@@ -72,6 +75,7 @@ dc1clks = [h.Vector() for _ in range(4)]
 for i, v in enumerate(dc1clks):
     v.label(dc1_labels[i])
 
+
 def writeraw():
     import pickle
 
@@ -116,7 +120,8 @@ def run(tstop):
     pc.set_maxstep(1000)
     h.finitialize(-65)
     pc.psolve(tstop)
-    h.fill_dc1_array(*dc1clks)
+    # h.fill_dc1_array(*dc1clks)
+    writeraw()
     for g in gs:
         g.erase()
     dtvec.label("nrndt")
