@@ -13,6 +13,7 @@
 #include "nonvintblock.h"
 #include "nrncvode.h"
 #include "spmatrix.h"
+#include "sync.h"
 
 #include <vector>
 
@@ -499,7 +500,12 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
     wt = nrnmpi_wtime();
     nrn_random_play();
 
+    cyto_barrier_wait(CytoBarrierStart);
+    
+    cyto_barrier_wait(CytoBarrierLoopIndex);
+
     pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
+    //rendezvous(nth->neuron_shared);
     if (nth->neuron_shared->Neuron_DC1_Mode) {
         // printf("TRIGGERING DYNAMIC CLAMP MODE!\n");
         nrnval[0] = nth->neuron_shared->dc1_loop_index;  // dc1LoopIndex
@@ -592,11 +598,13 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
     fixed_play_continuous(nth);
     setup_tree_matrix(nth);
 
+    cyto_barrier_wait(CytoBarrierMidpoint);
+
     pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
     if (nth->neuron_shared->Neuron_DC1_Mode) {
 
         //  Synchronize execution with DC1
-        rendezvous(nth->neuron_shared);
+        //rendezvous(nth->neuron_shared);
 
         pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
         // printf("nrn wait for current_is_ready\n");
@@ -720,6 +728,10 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
 	fclose(f);
 
 #endif
+    cyto_barrier_wait(CytoBarrierEnd);
+    //pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
+    //rendezvous(nth->neuron_shared);
+    //pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
     // leigh - above
     nrnclk[11] = realtime();  // nrnFixedStepLeave (after record so needs special processing)
     return nullptr;

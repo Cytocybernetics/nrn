@@ -136,7 +136,8 @@ set(NRNOC_FILE_LIST
     solve.cpp
     synapse.cpp
     treeset.cpp
-    multicore.cpp)
+    multicore.cpp
+    sync.c)
 
 # =============================================================================
 # Files in ivoc directory

@@ -3,6 +3,7 @@
 
 #include "hoclist.h"
 #include "section.h"
+#include "sync.h"
 /*
 Now that threads have taken over the actual_v, v_node, etc, it might
 be a good time to regularize the method of freeing, allocating, and
@@ -315,6 +316,9 @@ void nrn_threads_create(int n, bool parallel) {
                 // leigh - below
                 // *** Setting up shared memory between Neuron and DC1 ***
                 // ftok to generate unique key
+
+                cyto_sync_init(false);
+
                 key_t key = ftok(SHM_NRN_TOKEN, SHM_NRN_ID);
 
                 int shmid = shmget(key, 1024, 0666 | IPC_CREAT);

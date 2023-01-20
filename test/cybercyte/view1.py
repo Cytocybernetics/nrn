@@ -1,4 +1,4 @@
-# explore rawtime.dat without need for cybercyte specific code
+    # explore rawtime.dat without need for cybercyte specific code
 
 nrnclk_labels = [
     "nrnFixedStepEntry",  # 0
@@ -37,6 +37,19 @@ def readraw():
         v.label(nrnval_labels[i])
     return data
 
+def dumpcsv(clks, vals):
+    with open("rawclock.csv", "w") as f:
+        for v in clks:
+            f.write('"' + v.label() + '"')
+            for clk in v:
+                f.write("," + str(clk))
+            f.write("\n")
+    with open("rawvalues.csv", "w") as f:
+        for v in vals:
+            f.write('"' + v.label() + '"')
+            for val in v:
+                f.write("," + str(val))
+            f.write("\n")
 
 nrnclks, nrnvals = readraw()
 
@@ -60,3 +73,5 @@ for v in nrnclks:
 print("nrnvals")
 for v in nrnvals:
     print(v[0], v[1], v[2], v[3], v[4], v.label())
+
+dumpcsv(nrnclks, nrnvals)
