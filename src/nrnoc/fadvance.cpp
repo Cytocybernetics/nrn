@@ -500,11 +500,11 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
     wt = nrnmpi_wtime();
     nrn_random_play();
 
-    cyto_barrier_wait(CytoBarrierStart);
-    
-    cyto_barrier_wait(CytoBarrierLoopIndex);
-
     if (nth->neuron_shared->Neuron_DC1_Mode) {
+        cyto_barrier_wait(CytoBarrierStart);
+        
+        cyto_barrier_wait(CytoBarrierLoopIndex);
+
         // printf("TRIGGERING DYNAMIC CLAMP MODE!\n");
         nrnval[0] = nth->neuron_shared->dc1_loop_index;  // dc1LoopIndex
         nrnval[1] = nth->_t;                             // nrnFixedStepEntrySimTime
@@ -593,9 +593,9 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
     fixed_play_continuous(nth);
     setup_tree_matrix(nth);
 
-    cyto_barrier_wait(CytoBarrierMidpoint);
-
     if (nth->neuron_shared->Neuron_DC1_Mode) {
+
+        cyto_barrier_wait(CytoBarrierMidpoint);
 
         // printf("nrn wait for current_is_ready\n");
         nrnclk[3] = realtime();  // nrnWaitForCurrentIsReady
@@ -714,7 +714,9 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
 	fclose(f);
 
 #endif
-    cyto_barrier_wait(CytoBarrierEnd);
+    if (nth->neuron_shared->Neuron_DC1_Mode) {
+        cyto_barrier_wait(CytoBarrierEnd);
+    }
     // leigh - above
     nrnclk[11] = realtime();  // nrnFixedStepLeave (after record so needs special processing)
     return nullptr;
