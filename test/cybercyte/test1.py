@@ -36,6 +36,10 @@ nrnclk_labels = [
     "dc1ContinueVoltageIsReady",
     "nrnVoltageUpdate",
     "nrnFixedStepLeave",  # 11
+    "dc1ReadCurrentBegin", # 12
+    "dc1ReadCurrentEnd", # 13
+    "dc1LoopBegin", # 14
+    "dc1LoopEnd", # 15
 ]
 
 nrnval_labels = [

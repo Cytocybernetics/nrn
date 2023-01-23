@@ -718,7 +718,11 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         nrnclk[7] = nth->neuron_shared->dac_write_end_voltage_time_nano;    // dc1WriteVoltageEnd
         nrnclk[8] = nth->neuron_shared->dc1_wait_for_voltage_is_ready;  // dc1WaitForVoltageIsReady
         nrnclk[9] = nth->neuron_shared->dc1_continue_voltage_is_ready;  // dc1ContinueVoltageIsReady
-        
+        nrnclk[12] = nth->neuron_shared->adc_read_begin_current_time_nano; // dc1ReadCurrentBegin
+        nrnclk[13] = nth->neuron_shared->adc_read_end_current_time_nano; // dc1ReadCurrentEnd
+        nrnclk[14] = nth->neuron_shared->dc1_loop_begin_time_nano; // dc1LoopBegin
+        nrnclk[15] = nth->neuron_shared->dc1_loop_end_time_nano; // dc1LoopEnd
+
         cyto_barrier_wait(CytoBarrierEnd);
     }
     // leigh - above
