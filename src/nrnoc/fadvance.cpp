@@ -504,8 +504,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
     
     cyto_barrier_wait(CytoBarrierLoopIndex);
 
-    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
-    //rendezvous(nth->neuron_shared);
     if (nth->neuron_shared->Neuron_DC1_Mode) {
         // printf("TRIGGERING DYNAMIC CLAMP MODE!\n");
         nrnval[0] = nth->neuron_shared->dc1_loop_index;  // dc1LoopIndex
@@ -522,7 +520,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         nth->_t += .5 * nth->_dt;
 #endif
     }
-    pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
 
     // printf("nth->_t = %g\n", nth->_t);
 
@@ -556,7 +553,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
     // printf("NrnThread->Node[0]->v: %g\n", *(nth->_v_node[0])->_v);
     // printf("(1) NrnThread->Node[1]->v: %g\n\n", *(nth->_v_node[1])->_v);
 
-    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
     if (nth->neuron_shared->Neuron_DC1_Mode) {
         // Electronic Expression Mode
         if (nth->neuron_shared->Electronic_Expression_Mode_ch1) {
@@ -591,7 +587,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
             // Nothing for now
         }
     }
-    pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
 
     // printf("(nth->_v_node[1])->_v = %g\n", *(nth->_v_node[1])->_v);
 
@@ -600,13 +595,8 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
 
     cyto_barrier_wait(CytoBarrierMidpoint);
 
-    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
     if (nth->neuron_shared->Neuron_DC1_Mode) {
 
-        //  Synchronize execution with DC1
-        //rendezvous(nth->neuron_shared);
-
-        pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
         // printf("nrn wait for current_is_ready\n");
         nrnclk[3] = realtime();  // nrnWaitForCurrentIsReady
 #if SEMA
@@ -653,8 +643,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
                                          nth->neuron_shared->invertType_ch2) *
                                         (-0.1 / nth->_v_node[1]->_area);
         }
-    } else {
-        pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
     }
 
     {
@@ -673,7 +661,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         nrnval[4] = *(nth->_v_node[1])->_v;   // nrnVoltageUpdateValue
     }
 
-    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
     if (nth->neuron_shared->Neuron_DC1_Mode) {
         // Electronic Expression Mode
         if (nth->neuron_shared->Electronic_Expression_Mode_ch1) {
@@ -685,7 +672,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
             nth->neuron_shared->I_mem_ch2 = *(nth->_v_node[1])->_rhs;
         }
     }
-    pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
 
     // printf("(nth->_v_node[1])->_rhs = %g\n", *(nth->_v_node[1])->_rhs);
 
@@ -729,9 +715,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
 
 #endif
     cyto_barrier_wait(CytoBarrierEnd);
-    //pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
-    //rendezvous(nth->neuron_shared);
-    //pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
     // leigh - above
     nrnclk[11] = realtime();  // nrnFixedStepLeave (after record so needs special processing)
     return nullptr;
