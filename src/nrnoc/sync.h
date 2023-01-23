@@ -12,6 +12,7 @@ typedef enum {
     CytoBarrierStart,
     CytoBarrierLoopIndex,
     CytoBarrierMidpoint,
+    CytoBarrierTiming,
     CytoBarrierEnd,
     CytoBarrierSize // Must be last
 } cyto_barrier_id;

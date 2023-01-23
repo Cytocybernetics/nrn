@@ -607,11 +607,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
 #endif // SEMA
         // printf("nrn continue from current_is_ready\n");
         nrnclk[4] = realtime();                                      // nrnContinueCurrentIsReady
-        nrnclk[5] = nth->neuron_shared->adc_read_current_time_nano;  // dc1ReadCurrent
-        nrnclk[6] = nth->neuron_shared->dac_write_begin_voltage_time_nano;  // dc1WriteVoltageBegin
-        nrnclk[7] = nth->neuron_shared->dac_write_end_voltage_time_nano;    // dc1WriteVoltageEnd
-        nrnclk[8] = nth->neuron_shared->dc1_wait_for_voltage_is_ready;  // dc1WaitForVoltageIsReady
-        nrnclk[9] = nth->neuron_shared->dc1_continue_voltage_is_ready;  // dc1ContinueVoltageIsReady
 
         // Synthetic Cell Mode
         if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
@@ -714,7 +709,16 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
 	fclose(f);
 
 #endif
+
     if (nth->neuron_shared->Neuron_DC1_Mode) {
+        cyto_barrier_wait(CytoBarrierTiming);
+
+        nrnclk[5] = nth->neuron_shared->adc_read_current_time_nano;  // dc1ReadCurrent
+        nrnclk[6] = nth->neuron_shared->dac_write_begin_voltage_time_nano;  // dc1WriteVoltageBegin
+        nrnclk[7] = nth->neuron_shared->dac_write_end_voltage_time_nano;    // dc1WriteVoltageEnd
+        nrnclk[8] = nth->neuron_shared->dc1_wait_for_voltage_is_ready;  // dc1WaitForVoltageIsReady
+        nrnclk[9] = nth->neuron_shared->dc1_continue_voltage_is_ready;  // dc1ContinueVoltageIsReady
+        
         cyto_barrier_wait(CytoBarrierEnd);
     }
     // leigh - above
