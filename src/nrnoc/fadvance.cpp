@@ -514,10 +514,6 @@ void fill_dc1_array() { // 4 Vector args.
         perror("nrn sem_post error voltage full");
         abort();
     }
-    if (sem_post(&nth->neuron_shared->current_empty)) {
-        perror("nrn sem_post error current_empty");
-        abort();
-    }
 #endif
     hoc_retpushx(1.0);
 }
@@ -629,10 +625,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
             // printf("NrnThread->Node[0]->rhs: %g\n", *(nth->_v_node[0])->_rhs);
             // printf("NrnThread->Node[1]->rhs: %g\n\n", *(nth->_v_node[1])->_rhs);
 
-            if (sem_post(&nth->neuron_shared->current_empty)) {
-                perror("nrn sem_post error current empty");
-                abort();
-            }
         } else if (nth->neuron_shared->Synthetic_Cell_Mode_ch2) {
             //*(nth->_v_node[1])->_rhs += nth->neuron_shared->I_mem_ch2 * (0.01 /
             // nth->_v_node[1]->_area);
@@ -669,10 +661,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         // Synthetic Cell Mode
         else if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
             // Voltage output is coming from Neuron
-            if (sem_wait(&nth->neuron_shared->voltage_empty)) {
-                perror("nrn sem_wait error voltage empty");
-                abort();
-            }
     {
         nrn::Instrumentor::phase p("update");
         update(nth);
