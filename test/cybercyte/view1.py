@@ -71,7 +71,7 @@ def noncontiguous_dc1_indices():
         iold = i
 
 
-noncontiguous_dc1_indices()
+# noncontiguous_dc1_indices()
 
 
 def a(i):
@@ -96,3 +96,46 @@ a(0)
 a(339)
 a(17261)
 """
+
+"""
+dc1 Iadc should always be before nrn Icontrib
+nrn Vcalc should always be before dc1 Vdac
+
+dc1 Iadc: dc1_adc_read_array dc1_labels[0]
+nrn Vcalc: nrnPostVoltageIsReady nrnclk_labels[2]
+nrn Icontrib: nrnContinueCurrentIsReady nrnclk_labels[4]
+dc1 Vdac: dc1_write_voltage_array  dc1_labels[3]
+
+except for size issues, Icontrib - Iadc, every element positive
+Vdac - Vcalc, every element positive
+"""
+assert nrnclks[4].c(0, 39999).sub(dc1clks[0].c(0, 39999)).indvwhere("<=", 0).size() == 0
+assert dc1clks[3].c(0, 39999).sub(nrnclks[2].c(0, 39999)).indvwhere("<=", 0).size() == 0
+
+from neuron import h, gui
+
+g = h.Graph()
+
+last = 39998
+z = [
+    dc1clks[0].cl(0, last),  # iadc
+    nrnclks[4].cl(0, last),  # Icontrib
+    nrnclks[2].cl(0, last),  # Vcalc
+    dc1clks[3].cl(0, last),  # Vdac
+]
+orig = z[1][0]
+for v in z:
+    v.sub(orig)
+z[0][0] = -10000
+for i, v in enumerate(z):
+    print(i, v.c(0, 5).to_python(), v.label())
+for i in range(3):
+    i1 = (i + 1) % 4
+    print(i, z[i].c().sub(z[i1]).indvwhere(">", 0).size())
+print(3, z[3].c(0, last - 1).sub(z[0].c(1, last)).indvwhere(">", 0).size())
+
+# g.vfixed()
+g.label(0.1, 0.9)
+for i, v in enumerate(z):
+    v.c().fill(i + 1).mark(g, v, "|")
+    g.label("%d %s" % (i, v.label()))

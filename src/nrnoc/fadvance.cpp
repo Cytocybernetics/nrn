@@ -514,6 +514,10 @@ void fill_dc1_array() { // 4 Vector args.
         perror("nrn sem_post error voltage full");
         abort();
     }
+    if (sem_post(&nth->neuron_shared->current_empty)) {
+        perror("nrn sem_post error current_empty");
+        abort();
+    }
 #endif
     hoc_retpushx(1.0);
 }
@@ -580,46 +584,8 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
     // printf("NrnThread->Node[0]->v: %g\n", *(nth->_v_node[0])->_v);
     // printf("(1) NrnThread->Node[1]->v: %g\n\n", *(nth->_v_node[1])->_v);
 
-    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
-    if (nth->neuron_shared->Neuron_DC1_Mode) {
-        // Electronic Expression Mode
-        if (nth->neuron_shared->Electronic_Expression_Mode_ch1) {
-            // Voltage input is coming from DC1
-            *(nth->_v_node[1])->_v = nth->neuron_shared->V_mem_ch1;
-
-            // printf("(2) NrnThread->Node[1]->v: %g\n\n", *(nth->_v_node[1])->_v);
-
-            // printf("nth->neuron_shared->V_mem_ch1 = %g\n", nth->neuron_shared->V_mem_ch1);
-        } else if (nth->neuron_shared->Electronic_Expression_Mode_ch2) {
-            *(nth->_v_node[1])->_v = nth->neuron_shared->V_mem_ch2;
-        }
-        // Synthetic Cell Mode
-        else if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
-            // Voltage output is coming from Neuron
-            if (sem_wait(&nth->neuron_shared->voltage_empty)) {
-                perror("nrn sem_wait error voltage empty");
-                abort();
-            }
-            nth->neuron_shared->V_mem_ch1 = *(nth->_v_node[1])->_v;
-            // printf("nrn post voltage is ready\n");
-            nrnclk[2] = realtime();  // nrnPostVoltageIsReady
-            if (sem_post(&nth->neuron_shared->voltage_full)) {
-                perror("nrn sem_post error voltage full");
-                abort();
-            }
-        } else if (nth->neuron_shared->Synthetic_Cell_Mode_ch2) {
-            nth->neuron_shared->V_mem_ch2 = *(nth->_v_node[1])->_v;
-        }
-        // Cell Coupling Mode
-        if (nth->neuron_shared->Cell_Coupling_Mode_ch1) {
-            // Nothing for now
-        } else if (nth->neuron_shared->Cell_Coupling_Mode_ch2) {
-            // Nothing for now
-        }
-    }
-    pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
-
     // printf("(nth->_v_node[1])->_v = %g\n", *(nth->_v_node[1])->_v);
+
 
     fixed_play_continuous(nth);
     setup_tree_matrix(nth);
@@ -687,6 +653,26 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         nrn::Instrumentor::phase p("second-order-cur");
         second_order_cur(nth);
     }
+    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
+    if (nth->neuron_shared->Neuron_DC1_Mode) {
+        // Electronic Expression Mode
+        if (nth->neuron_shared->Electronic_Expression_Mode_ch1) {
+            // Voltage input is coming from DC1
+            *(nth->_v_node[1])->_v = nth->neuron_shared->V_mem_ch1;
+
+            // printf("(2) NrnThread->Node[1]->v: %g\n\n", *(nth->_v_node[1])->_v);
+
+            // printf("nth->neuron_shared->V_mem_ch1 = %g\n", nth->neuron_shared->V_mem_ch1);
+        } else if (nth->neuron_shared->Electronic_Expression_Mode_ch2) {
+            *(nth->_v_node[1])->_v = nth->neuron_shared->V_mem_ch2;
+        }
+        // Synthetic Cell Mode
+        else if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
+            // Voltage output is coming from Neuron
+            if (sem_wait(&nth->neuron_shared->voltage_empty)) {
+                perror("nrn sem_wait error voltage empty");
+                abort();
+            }
     {
         nrn::Instrumentor::phase p("update");
         update(nth);
@@ -694,6 +680,25 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         nrnval[3] = nth->_t + .5 * nth->_dt;  // nrnVoltageUpdateSimTime
         nrnval[4] = *(nth->_v_node[1])->_v;   // nrnVoltageUpdateValue
     }
+
+            nth->neuron_shared->V_mem_ch1 = *(nth->_v_node[1])->_v;
+            // printf("nrn post voltage is ready\n");
+            nrnclk[2] = realtime();  // nrnPostVoltageIsReady
+            if (sem_post(&nth->neuron_shared->voltage_full)) {
+                perror("nrn sem_post error voltage full");
+                abort();
+            }
+        } else if (nth->neuron_shared->Synthetic_Cell_Mode_ch2) {
+            nth->neuron_shared->V_mem_ch2 = *(nth->_v_node[1])->_v;
+        }
+        // Cell Coupling Mode
+        if (nth->neuron_shared->Cell_Coupling_Mode_ch1) {
+            // Nothing for now
+        } else if (nth->neuron_shared->Cell_Coupling_Mode_ch2) {
+            // Nothing for now
+        }
+    }
+    pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
 
     pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
     if (nth->neuron_shared->Neuron_DC1_Mode) {

@@ -120,7 +120,7 @@ def run(tstop):
     pc.set_maxstep(1000)
     h.finitialize(-65)
     pc.psolve(tstop)
-    # h.fill_dc1_array(*dc1clks)
+    h.fill_dc1_array(*dc1clks)
     writeraw()
     for g in gs:
         g.erase()
