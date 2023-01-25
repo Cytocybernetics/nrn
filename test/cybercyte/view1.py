@@ -17,6 +17,7 @@ nrnclk_labels = [
     "dc1ReadCurrentEnd", # 13
     "dc1LoopBegin", # 14
     "dc1LoopEnd", # 15
+    "msTime", # 16
 ]
 
 nrnval_labels = [
@@ -45,14 +46,12 @@ def dumpcsv(clks, vals):
     with open("rawclock.csv", "w") as f:
         for v in clks:
             f.write('"' + v.label() + '"')
-            for clk in v:
-                f.write("," + str(clk))
+            for clk in v: f.write("," + str(clk))
             f.write("\n")
     with open("rawvalues.csv", "w") as f:
         for v in vals:
             f.write('"' + v.label() + '"')
-            for val in v:
-                f.write("," + str(val))
+            for val in v: f.write("," + str(val))
             f.write("\n")
 
 nrnclks, nrnvals = readraw()
@@ -66,7 +65,7 @@ for v in nrnvals:
 # translate all time vectors relative to first value of nrnFixedStepEntry
 torigin = nrnclks[0][0]
 for v in nrnclks:
-    if "nrnVoltageUpdateSimTime" != v.label():
+    if "nrnVoltageUpdateSimTime" != v.label() and "msTime" != v.label():
         v.sub(torigin)
 
 # Here are the first few times

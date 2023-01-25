@@ -509,6 +509,7 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         nrnval[0] = nth->neuron_shared->dc1_loop_index;  // dc1LoopIndex
         nrnval[1] = nth->_t;                             // nrnFixedStepEntrySimTime
         nrnclk[1] = nth->neuron_shared->dc1_time;        // dc1BeginLoop
+        nrnclk[16] = nth->neuron_shared->msTime;         // msTime
         nth->_dt = nth->neuron_shared->msTime;
         dt = nth->_dt;
         nth->_t += .5 * nth->_dt;

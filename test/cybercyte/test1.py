@@ -40,6 +40,7 @@ nrnclk_labels = [
     "dc1ReadCurrentEnd", # 13
     "dc1LoopBegin", # 14
     "dc1LoopEnd", # 15
+    "msTime", # 16
 ]
 
 nrnval_labels = [
