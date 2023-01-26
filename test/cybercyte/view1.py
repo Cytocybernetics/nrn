@@ -4,22 +4,11 @@ from read_dc1raw import read_dc1raw
 dc1clks = read_dc1raw()
 
 nrnclk_labels = [
-    "nrnFixedStepEntry",  # 0
-    "dc1BeginLoop",
-    "nrnPostVoltageIsReady",
-    "nrnWaitForCurrentIsReady",
     "nrnContinueCurrentIsReady",
-    "dc1ReadCurrent",
-    "dc1WriteVoltageBegin",
-    "dc1WriteVoltageEnd",
-    "dc1WaitForVoltageIsReady",
-    "dc1ContinueVoltageIsReady",
-    "nrnVoltageUpdate",
-    "nrnFixedStepLeave",  # 11
+    "nrnPostVoltageIsReady",
 ]
 
 nrnval_labels = [
-    "dc1LoopIndex",  # 0 integer
     "nrnFixedStepEntrySimTime",  # ms
     "dc1CurrentIntoRHS",  # ??
     "nrnVoltageUpdateSimTime",  # ms
@@ -41,7 +30,7 @@ def readraw():
     return data
 
 
-nrnclks, nrnvals, foo = readraw()
+nrnclks, nrnvals = readraw()
 
 # first record values (finitialize) are useless
 for v in nrnclks:
@@ -56,22 +45,6 @@ for v in nrnclks:
 
 for v in dc1clks:
     v.sub(torigin)
-
-
-def noncontiguous_dc1_indices():
-    print("dc1LoopIndex problems (adjacent difference != 1)")
-    ix = nrnvals[0].c().deriv(1, 1).indvwhere("!=", 1)
-    ix = [int(i) for i in ix]
-    print("context")
-    dc1_indices = [int(i) for i in nrnvals[0]]
-    iold = -100
-    for i in ix:
-        if i > iold + 2:
-            print(i, dc1_indices[i : i + 7])
-        iold = i
-
-
-# noncontiguous_dc1_indices()
 
 
 def a(i):
@@ -92,36 +65,29 @@ def a(i):
 
 
 """
-a(0)
-a(339)
-a(17261)
-"""
-
-"""
 dc1 Iadc should always be before nrn Icontrib
 nrn Vcalc should always be before dc1 Vdac
 
 dc1 Iadc: dc1_adc_read_array dc1_labels[0]
-nrn Vcalc: nrnPostVoltageIsReady nrnclk_labels[2]
-nrn Icontrib: nrnContinueCurrentIsReady nrnclk_labels[4]
-dc1 Vdac: dc1_write_voltage_array  dc1_labels[3]
+nrn Icontrib: nrnContinueCurrentIsReady nrnclk_labels[0]
+nrn Vcalc: nrnPostVoltageIsReady nrnclk_labels[1]
+dc1 Vdac: dc1_write_voltage_array  dc1_labels[1]
 
 except for size issues, Icontrib - Iadc, every element positive
 Vdac - Vcalc, every element positive
 """
-assert nrnclks[4].c(0, 39999).sub(dc1clks[0].c(0, 39999)).indvwhere("<=", 0).size() == 0
-assert dc1clks[3].c(0, 39999).sub(nrnclks[2].c(0, 39999)).indvwhere("<=", 0).size() == 0
+assert nrnclks[0].c(0, 39999).sub(dc1clks[0].c(0, 39999)).indvwhere("<=", 0).size() == 0
+assert dc1clks[1].c(0, 39999).sub(nrnclks[1].c(0, 39999)).indvwhere("<=", 0).size() == 0
 
 from neuron import h, gui
 
-g = h.Graph()
 
 last = 39998
 z = [
     dc1clks[0].cl(0, last),  # iadc
-    nrnclks[4].cl(0, last),  # Icontrib
-    nrnclks[2].cl(0, last),  # Vcalc
-    dc1clks[3].cl(0, last),  # Vdac
+    nrnclks[0].cl(0, last),  # Icontrib
+    nrnclks[1].cl(0, last),  # Vcalc
+    dc1clks[1].cl(0, last),  # Vdac
 ]
 orig = z[1][0]
 for v in z:
@@ -134,8 +100,31 @@ for i in range(3):
     print(i, z[i].c().sub(z[i1]).indvwhere(">", 0).size())
 print(3, z[3].c(0, last - 1).sub(z[0].c(1, last)).indvwhere(">", 0).size())
 
-# g.vfixed()
-g.label(0.1, 0.9)
-for i, v in enumerate(z):
-    v.c().fill(i + 1).mark(g, v, "|")
-    g.label("%d %s" % (i, v.label()))
+graphs = []
+
+
+def event_pattern(begin=0, size=100):
+    g = h.Graph()
+    graphs.append(g)
+    g.label(0.1, 0.9)
+    origin = z[0][begin]
+    for i, v in enumerate(z):
+        x = v.c(begin, begin + size - 1)
+        x.c().fill(i + 1).mark(g, x, "|")
+        g.label("%d %s" % (i, v.label()))
+
+
+def tdiff():
+    g = h.Graph()
+    graphs.append(g)
+    g.label(0.1, 0.9)
+    for i in range(len(z) - 1):
+        z[i + 1].c().sub(z[i]).line(g, 1, i + 1, 1)
+        g.color(i + 1)
+        g.label("%s - %s" % (z[i + 1].label(), z[i].label()))
+    z[0].c(1, last).sub(z[3].c(0, last - 1)).line(g, 1, 4, 1)
+    g.color(4)
+    g.label("%s  - %s" % (z[0].label(), z[3].label()))
+
+
+tdiff()

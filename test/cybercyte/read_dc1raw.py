@@ -4,8 +4,6 @@ import struct
 
 dc1raw_labels = [
     "dc1_adc_read_array",
-    "dc1_time_array",
-    "dc1_wait_voltage_array",
     "dc1_write_voltage_array",
 ]
 

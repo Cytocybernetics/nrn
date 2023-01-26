@@ -15,7 +15,7 @@
 # 6) Exit neuron or ...
 # 7) In each nrniv Graph, select View/View=plot
 
-from neuron import h, gui
+from neuron import h
 
 pc = h.ParallelContext()
 
@@ -27,33 +27,20 @@ tvec = h.Vector().record(h._ref_t, sec=s).resize(50000)
 dtvec = h.Vector().record(h._ref_dt, sec=s).resize(50000)
 
 nrnclk_labels = [
-    "nrnFixedStepEntry",  # 0
-    "dc1BeginLoop",
-    "nrnPostVoltageIsReady",
-    "nrnWaitForCurrentIsReady",
     "nrnContinueCurrentIsReady",
-    "dc1ReadCurrent",
-    "dc1WriteVoltageBegin",
-    "dc1WriteVoltageEnd",
-    "dc1WaitForVoltageIsReady",
-    "dc1ContinueVoltageIsReady",
-    "nrnVoltageUpdate",
-    "nrnFixedStepLeave",  # 11
+    "nrnPostVoltageIsReady",
 ]
 
 nrnval_labels = [
-    "dc1LoopIndex",  # 0 integer
     "nrnFixedStepEntrySimTime",  # ms
     "dc1CurrentIntoRHS",  # ??
     "nrnVoltageUpdateSimTime",  # ms
-    "nrnVoltageUpdateValue",  # 4 mV
+    "nrnVoltageUpdateValue",  # mV
 ]
 
 dc1_labels = [
-    "dc1_time_array",
-    "dc1_wait_voltage_array",
-    "dc1_write_voltage_array",
     "dc1_adc_read_array",
+    "dc1_write_voltage_array",
 ]
 
 nrnclks = [
@@ -71,16 +58,11 @@ for i, v in enumerate(nrnvals):
     v.label(nrnval_labels[i])
 
 
-dc1clks = [h.Vector() for _ in range(4)]
-for i, v in enumerate(dc1clks):
-    v.label(dc1_labels[i])
-
-
 def writeraw():
     import pickle
 
     with open("rawtime.dat", "wb") as f:
-        pickle.dump((nrnclks, nrnvals, dc1clks), f)
+        pickle.dump((nrnclks, nrnvals), f)
 
 
 def readraw():
@@ -95,9 +77,6 @@ def readraw():
     for i, v in enumerate(data[2]):
         v.label(dc1_labels[i])
     return data
-
-
-gs = [h.Graph() for i in range(2)]
 
 
 def normalize(v):
@@ -120,35 +99,12 @@ def run(tstop):
     pc.set_maxstep(1000)
     h.finitialize(-65)
     pc.psolve(tstop)
-    h.fill_dc1_array(*dc1clks)
+    h.fill_dc1_array()
     writeraw()
-    for g in gs:
-        g.erase()
-    dtvec.label("nrndt")
-    dtvec.line(gs[1], 1, 1)
-    deriv(nrnclks[0]).line(gs[1], 2, 1)
-    # nrnclks[11] record takes place before assignment. So rotate toward 0 and
-    # copy nrnclk[11] into last element
-    nrnclks[11].rotate(-1).x[nrnclks[11].size() - 1] = h.nrnclk[11]
-
-    normalize(nrnclks[1]).line(gs[0], 1, 1)
-    normalize(nrnclks[0]).line(gs[0], 2, 1)
 
 
 def sub(i, j):
     return nrnclks[i].c().sub(nrnclks[j]).mul(1e-6)
-
-
-def pltnrnvecs():
-    grphs = []
-    for i in range(1, 10):
-        g = h.Graph()
-        x = sub(i, i - 1).line(g)
-        g.label(0.4, 0.9, "nrnclk[%d] - nrnclk[%d]" % (i, i - 1))
-        g.label(nrnclks_labels[i] + " - " + nrnclks_labels[i - 1])
-        g.exec_menu("View = plot")
-        grphs.append((g, x))
-    return grphs
 
 
 h(
