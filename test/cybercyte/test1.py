@@ -29,6 +29,7 @@ dtvec = h.Vector().record(h._ref_dt, sec=s).resize(50000)
 nrnclk_labels = [
     "nrnContinueCurrentIsReady",
     "nrnPostVoltageIsReady",
+    "waitIFull",
 ]
 
 nrnval_labels = [

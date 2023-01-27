@@ -528,7 +528,14 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
     wt = nrnmpi_wtime();
     nrn_random_play();
 
-    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
+    // printf("nrn wait for current_is_ready\n");
+    if (sem_wait(&nth->neuron_shared->current_full)) {
+        perror("nrn sem_wait error current full");
+        abort();
+    }
+    nrnclk[2] = realtime(); // after waitIFull
+
+
     if (nth->neuron_shared->Neuron_DC1_Mode) {
         // printf("TRIGGERING DYNAMIC CLAMP MODE!\n");
         nrnval[0] = nth->_t;                             // nrnFixedStepEntrySimTime
@@ -543,54 +550,11 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         nth->_t += .5 * nth->_dt;
 #endif
     }
-    pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
-
-    // printf("nth->_t = %g\n", nth->_t);
-
-    // num_iterations++;
-    // overall_time += nth->_dt;
-    /*
-        // Print the contents of the NrnThread Data Structure
-        printf("NrnThread->_t: %g\n", nth->_t);
-        printf("NrnThread->_dt: %g\n", nth->_dt);
-
-        //if (nth->_actual_v != NULL)
-        //    printf("NrnThread->_actual_v: %g\n", *(nth->_actual_v));
-        //else
-        //    printf("NrnThread->_actual_v: NULL\n");
-
-        if (nth->_v_node[0] != NULL)
-            printf("NrnThread->Node->v: %g\n", *(nth->_v_node[0])->_v);
-        else
-            printf("NrnThread->Node->v: NULL\n");
-
-        //printf("NrnThread->_ctime: %g\n", nth->_ctime);
-
-        printf("NrnThread->neuron_shared->I_mem: %g\n", nth->neuron_shared->I_mem_ch1);
-        printf("NrnThread->neuron_shared->V_mem: %g\n", nth->neuron_shared->V_mem_ch1);
-        printf("NrnThread->neuron_shared->msTime: %g\n", nth->neuron_shared->msTime);
-
-        clock_gettime(CLOCK_MONOTONIC, &start_ts);
-        timeValues[0] = (BILLION*start_ts.tv_sec) + start_ts.tv_nsec;
-    */
-
-    // printf("NrnThread->Node[0]->v: %g\n", *(nth->_v_node[0])->_v);
-    // printf("(1) NrnThread->Node[1]->v: %g\n\n", *(nth->_v_node[1])->_v);
-
-    // printf("(nth->_v_node[1])->_v = %g\n", *(nth->_v_node[1])->_v);
-
 
     fixed_play_continuous(nth);
     setup_tree_matrix(nth);
 
-    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
     if (nth->neuron_shared->Neuron_DC1_Mode) {
-        pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
-        // printf("nrn wait for current_is_ready\n");
-        if (sem_wait(&nth->neuron_shared->current_full)) {
-            perror("nrn sem_wait error current full");
-            abort();
-        }
         // printf("nrn continue from current_is_ready\n");
         nrnclk[0] = realtime();                                      // nrnContinueCurrentIsReady
         // Synthetic Cell Mode
@@ -624,7 +588,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
                                         (-0.1 / nth->_v_node[1]->_area);
         }
     } else {
-        pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
     }
 
     {
@@ -635,7 +598,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         nrn::Instrumentor::phase p("second-order-cur");
         second_order_cur(nth);
     }
-    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
     if (nth->neuron_shared->Neuron_DC1_Mode) {
         // Electronic Expression Mode
         if (nth->neuron_shared->Electronic_Expression_Mode_ch1) {
@@ -675,9 +637,7 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
             // Nothing for now
         }
     }
-    pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
 
-    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
     if (nth->neuron_shared->Neuron_DC1_Mode) {
         // Electronic Expression Mode
         if (nth->neuron_shared->Electronic_Expression_Mode_ch1) {
@@ -689,9 +649,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
             nth->neuron_shared->I_mem_ch2 = *(nth->_v_node[1])->_rhs;
         }
     }
-    pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
-
-    // printf("(nth->_v_node[1])->_rhs = %g\n", *(nth->_v_node[1])->_rhs);
 
     CTADD
     /*
@@ -702,37 +659,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         nrn_fixed_step_lastpart(nth);
     }
 
-#if 0
-    // leigh - below
-
-	clock_gettime(CLOCK_MONOTONIC, &end_ts);
-	timeValues[1] = (BILLION*end_ts.tv_sec) + end_ts.tv_nsec;
-
-	deltaTimeArray = timeValues[1] - timeValues[0];
-	msTime = deltaTimeArray * pow(10, -6);
-
-	timeValues[0] = timeValues[1];
-	timeWindow += msTime;
-
-    //printf("Time to Solve is: %lf\n", msTime);
-
-    //printf("Total number of iterations: %d\n", num_iterations);
-    //printf("Overall time: %g\n", overall_time);
-    //printf("Average time per iteration: %g\n", overall_time/(double) num_iterations);
-
-	FILE *f = fopen("/home/cytocybernetics/Desktop/output.csv", "a");
-	if (f == NULL)
-	{
-		printf("Error opening file!\n");
-		exit(1);
-	}
-
-	fprintf(f, "%g,%g\n", nth->_t, nth->neuron_shared->V_mem_ch1);
-
-	fclose(f);
-
-#endif
-    // leigh - above
     return nullptr;
 }
 

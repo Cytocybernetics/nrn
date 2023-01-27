@@ -3,10 +3,7 @@ from read_dc1raw import read_dc1raw
 
 dc1clks = read_dc1raw()
 
-nrnclk_labels = [
-    "nrnContinueCurrentIsReady",
-    "nrnPostVoltageIsReady",
-]
+nrnclk_labels = ["nrnContinueCurrentIsReady", "nrnPostVoltageIsReady", "waitIFull"]
 
 nrnval_labels = [
     "nrnFixedStepEntrySimTime",  # ms
@@ -85,22 +82,35 @@ from neuron import h, gui
 last = 39998
 z = [
     dc1clks[0].cl(0, last),  # iadc
+    nrnclks[2].cl(0, last),  # waitIFull
     nrnclks[0].cl(0, last),  # Icontrib
     nrnclks[1].cl(0, last),  # Vcalc
     dc1clks[1].cl(0, last),  # Vdac
 ]
+nz = len(z)
 orig = z[1][0]
 for v in z:
     v.sub(orig)
 z[0][0] = -10000
 for i, v in enumerate(z):
     print(i, v.c(0, 5).to_python(), v.label())
-for i in range(3):
-    i1 = (i + 1) % 4
+for i in range(nz - 1):
+    i1 = (i + 1) % nz
     print(i, z[i].c().sub(z[i1]).indvwhere(">", 0).size())
-print(3, z[3].c(0, last - 1).sub(z[0].c(1, last)).indvwhere(">", 0).size())
+print(nz, z[nz - 1].c(0, last - 1).sub(z[0].c(1, last)).indvwhere(">", 0).size())
 
 graphs = []
+
+
+def stepsize():
+    g = h.Graph()
+    graphs.append(g)
+    g.label(0.1, 0.9)
+    for i in range(1):
+        z[0].c().deriv(1, 1).line(g)
+
+
+stepsize()
 
 
 def event_pattern(begin=0, size=100):
@@ -122,9 +132,9 @@ def tdiff():
         z[i + 1].c().sub(z[i]).line(g, 1, i + 1, 1)
         g.color(i + 1)
         g.label("%s - %s" % (z[i + 1].label(), z[i].label()))
-    z[0].c(1, last).sub(z[3].c(0, last - 1)).line(g, 1, 4, 1)
-    g.color(4)
-    g.label("%s  - %s" % (z[0].label(), z[3].label()))
+    z[0].c(1, last).sub(z[nz - 1].c(0, last - 1)).line(g, 1, nz + 1, 1)
+    g.color(nz + 1)
+    g.label("%s  - %s" % (z[0].label(), z[nz - 1].label()))
 
 
 tdiff()
