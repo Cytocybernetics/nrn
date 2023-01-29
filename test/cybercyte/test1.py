@@ -23,7 +23,7 @@ s = h.Section(name="soma")
 s.L = 3
 s.diam = 10
 s.insert("hh")
-ic = h.IClampQ(s(.5))
+ic = h.IClampQ(s(0.5))
 ic.delay = 1
 ic.dur = 0.1
 ic.amp = 0.3
@@ -42,11 +42,6 @@ nrnval_labels = [
     "dc1CurrentIntoRHS",  # ??
     "nrnVoltageUpdateSimTime",  # ms
     "nrnVoltageUpdateValue",  # mV
-]
-
-dc1_labels = [
-    "dc1_adc_read_array",
-    "dc1_write_voltage_array",
 ]
 
 nrnclks = [
@@ -80,8 +75,6 @@ def readraw():
         v.label(nrnclk_labels[i])
     for i, v in enumerate(data[1]):
         v.label(nrnval_labels[i])
-    for i, v in enumerate(data[2]):
-        v.label(dc1_labels[i])
     return data
 
 
@@ -115,6 +108,7 @@ def sub(i, j):
 
 run(10)
 import time
+
 time.sleep(2)
 quit()
 
