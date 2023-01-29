@@ -1132,6 +1132,19 @@ void nrn_finitialize(int setv, double v) {
 
     nrn_fihexec(2); /* just before return */
     nrn::Instrumentor::phase_end("finitialize");
+
+#if 1
+  //experiment with NRN calling sem_init so that NRN is waiting before pressing the DC1 run button
+  printf("NRN sem_init\n");
+  if (sem_init(&nrn_threads->neuron_shared->voltage_full, 1, 0 )) {
+    perror("NRN sem_init voltage full error");
+  }
+  if (sem_init(&nrn_threads->neuron_shared->current_full, 1, 0 )) {
+    perror("NRN sem_init current full error");
+  }   
+#endif
+
+
 }
 
 void finitialize(void) {

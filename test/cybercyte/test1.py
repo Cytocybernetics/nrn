@@ -22,6 +22,11 @@ pc = h.ParallelContext()
 s = h.Section(name="soma")
 s.L = 3
 s.diam = 10
+s.insert("hh")
+ic = h.IClampQ(s(.5))
+ic.delay = 1
+ic.dur = 0.1
+ic.amp = 0.3
 
 tvec = h.Vector().record(h._ref_t, sec=s).resize(50000)
 dtvec = h.Vector().record(h._ref_dt, sec=s).resize(50000)
@@ -107,6 +112,11 @@ def run(tstop):
 def sub(i, j):
     return nrnclks[i].c().sub(nrnclks[j]).mul(1e-6)
 
+
+run(10)
+import time
+time.sleep(2)
+quit()
 
 h(
     """

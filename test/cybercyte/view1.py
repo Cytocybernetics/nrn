@@ -73,13 +73,14 @@ dc1 Vdac: dc1_write_voltage_array  dc1_labels[1]
 except for size issues, Icontrib - Iadc, every element positive
 Vdac - Vcalc, every element positive
 """
-assert nrnclks[0].c(0, 39999).sub(dc1clks[0].c(0, 39999)).indvwhere("<=", 0).size() == 0
-assert dc1clks[1].c(0, 39999).sub(nrnclks[1].c(0, 39999)).indvwhere("<=", 0).size() == 0
+szv = nrnclks[0].size() - 1
+assert nrnclks[0].c(0, szv).sub(dc1clks[0].c(0, szv)).indvwhere("<=", 0).size() == 0
+assert dc1clks[1].c(0, szv).sub(nrnclks[1].c(0, szv)).indvwhere("<=", 0).size() == 0
 
 from neuron import h, gui
 
 
-last = 39998
+last = szv - 1
 z = [
     dc1clks[0].cl(0, last),  # iadc
     nrnclks[2].cl(0, last),  # waitIFull
@@ -138,3 +139,12 @@ def tdiff():
 
 
 tdiff()
+
+def pltv():
+    g = h.Graph()
+    graphs.append(g)
+    g.label(0.1, 0.9, "v(.5)")
+    nrnvals[3].c().line(g, nrnvals[2], 1, 1)
+
+pltv()
+
