@@ -489,8 +489,37 @@ static size_t realtime() {
     return ((billion * ts.tv_sec) + ts.tv_nsec) & floatmask;
 }
 
+void fill_dc1_array() { // 4 Vector args.
+    NrnThread* nth = nrn_threads;
+#if 0
+    size_t sz = nth->neuron_shared->dc1_loop_index;
+    size_t* p[4];
+    p[0] = nth->neuron_shared->dc1_time_array;
+    p[1] = nth->neuron_shared->dc1_wait_voltage_array;
+    p[2] = nth->neuron_shared->dc1_write_voltage_array;
+    p[3] = nth->neuron_shared->dc1_adc_read_array;
+    for (int iarg=0; iarg < 4; ++iarg) {
+        IvocVect* vec = vector_arg(iarg+1); // args start at 1
+        vector_resize(vec, sz);
+        double* pv = vector_vec(vec);
+        for (size_t i = 0; i < sz; ++i) {
+            pv[i] = p[iarg][i];
+        }
+    }
+#else
+    printf("sizeof neuron_shared %zd\n", sizeof(neuron_shared_data));
+    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
+    nth->neuron_shared->nrn_request_end_dc1_loop = 1;
+    pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
+    if (sem_post(&nth->neuron_shared->voltage_full)) {
+        perror("nrn sem_post error voltage full");
+        abort();
+    }
+#endif
+    hoc_retpushx(1.0);
+}
+
 void* nrn_fixed_step_thread(NrnThread* nth) {
-    nrnclk[0] = realtime();  // nrnFixedStepEntry
     double wt;
     {
         nrn::Instrumentor::phase p("deliver-events");
@@ -500,16 +529,17 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
     wt = nrnmpi_wtime();
     nrn_random_play();
 
-    if (nth->neuron_shared->Neuron_DC1_Mode) {
-        cyto_barrier_wait(CytoBarrierStart);
-        
-        cyto_barrier_wait(CytoBarrierLoopIndex);
+    // printf("nrn wait for current_is_ready\n");
+    if (sem_wait(&nth->neuron_shared->current_full)) {
+        perror("nrn sem_wait error current full");
+        abort();
+    }
+    nrnclk[2] = realtime(); // after waitIFull
 
+
+    if (nth->neuron_shared->Neuron_DC1_Mode) {
         // printf("TRIGGERING DYNAMIC CLAMP MODE!\n");
-        nrnval[0] = nth->neuron_shared->dc1_loop_index;  // dc1LoopIndex
-        nrnval[1] = nth->_t;                             // nrnFixedStepEntrySimTime
-        nrnclk[1] = nth->neuron_shared->dc1_time;        // dc1BeginLoop
-        nrnclk[16] = nth->neuron_shared->msTime;         // msTime
+        nrnval[0] = nth->_t;                             // nrnFixedStepEntrySimTime
         nth->_dt = nth->neuron_shared->msTime;
         dt = nth->_dt;
         nth->_t += .5 * nth->_dt;
@@ -522,93 +552,12 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
 #endif
     }
 
-    // printf("nth->_t = %g\n", nth->_t);
-
-    // num_iterations++;
-    // overall_time += nth->_dt;
-    /*
-        // Print the contents of the NrnThread Data Structure
-        printf("NrnThread->_t: %g\n", nth->_t);
-        printf("NrnThread->_dt: %g\n", nth->_dt);
-
-        //if (nth->_actual_v != NULL)
-        //    printf("NrnThread->_actual_v: %g\n", *(nth->_actual_v));
-        //else
-        //    printf("NrnThread->_actual_v: NULL\n");
-
-        if (nth->_v_node[0] != NULL)
-            printf("NrnThread->Node->v: %g\n", *(nth->_v_node[0])->_v);
-        else
-            printf("NrnThread->Node->v: NULL\n");
-
-        //printf("NrnThread->_ctime: %g\n", nth->_ctime);
-
-        printf("NrnThread->neuron_shared->I_mem: %g\n", nth->neuron_shared->I_mem_ch1);
-        printf("NrnThread->neuron_shared->V_mem: %g\n", nth->neuron_shared->V_mem_ch1);
-        printf("NrnThread->neuron_shared->msTime: %g\n", nth->neuron_shared->msTime);
-
-        clock_gettime(CLOCK_MONOTONIC, &start_ts);
-        timeValues[0] = (BILLION*start_ts.tv_sec) + start_ts.tv_nsec;
-    */
-
-    // printf("NrnThread->Node[0]->v: %g\n", *(nth->_v_node[0])->_v);
-    // printf("(1) NrnThread->Node[1]->v: %g\n\n", *(nth->_v_node[1])->_v);
-
-    if (nth->neuron_shared->Neuron_DC1_Mode) {
-        // Electronic Expression Mode
-        if (nth->neuron_shared->Electronic_Expression_Mode_ch1) {
-            // Voltage input is coming from DC1
-            *(nth->_v_node[1])->_v = nth->neuron_shared->V_mem_ch1;
-
-            // printf("(2) NrnThread->Node[1]->v: %g\n\n", *(nth->_v_node[1])->_v);
-
-            // printf("nth->neuron_shared->V_mem_ch1 = %g\n", nth->neuron_shared->V_mem_ch1);
-        } else if (nth->neuron_shared->Electronic_Expression_Mode_ch2) {
-            *(nth->_v_node[1])->_v = nth->neuron_shared->V_mem_ch2;
-        }
-        // Synthetic Cell Mode
-        else if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
-            // Voltage output is coming from Neuron
-            nth->neuron_shared->V_mem_ch1 = *(nth->_v_node[1])->_v;
-            // printf("nrn post voltage is ready\n");
-            nrnclk[2] = realtime();  // nrnPostVoltageIsReady
-#if SEMA
-            if (sem_post(&nth->neuron_shared->voltage_is_ready)) {
-                perror("nrn sem_post error");
-                abort();
-            }
-#endif // SEMA
-        } else if (nth->neuron_shared->Synthetic_Cell_Mode_ch2) {
-            nth->neuron_shared->V_mem_ch2 = *(nth->_v_node[1])->_v;
-        }
-        // Cell Coupling Mode
-        if (nth->neuron_shared->Cell_Coupling_Mode_ch1) {
-            // Nothing for now
-        } else if (nth->neuron_shared->Cell_Coupling_Mode_ch2) {
-            // Nothing for now
-        }
-    }
-
-    // printf("(nth->_v_node[1])->_v = %g\n", *(nth->_v_node[1])->_v);
-
     fixed_play_continuous(nth);
     setup_tree_matrix(nth);
 
     if (nth->neuron_shared->Neuron_DC1_Mode) {
-
-        cyto_barrier_wait(CytoBarrierMidpoint);
-
-        // printf("nrn wait for current_is_ready\n");
-        nrnclk[3] = realtime();  // nrnWaitForCurrentIsReady
-#if SEMA
-        if (sem_wait(&nth->neuron_shared->current_is_ready)) {
-            perror("nrn sem_wait error");
-            abort();
-        }
-#endif // SEMA
         // printf("nrn continue from current_is_ready\n");
-        nrnclk[4] = realtime();                                      // nrnContinueCurrentIsReady
-
+        nrnclk[0] = realtime();                                      // nrnContinueCurrentIsReady
         // Synthetic Cell Mode
         if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
             // Divide by 10,000 for v[1] and 1,000 for v[0]
@@ -621,7 +570,7 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
                             (-0.1 / nth->_v_node[1]->_area);
 
             *(nth->_v_node[1])->_rhs += dc1cur;
-            nrnval[2] = dc1cur;  // dc1CurrentIntoRHS
+            nrnval[1] = dc1cur;  // dc1CurrentIntoRHS
             // printf("NEURON MAG: %g\tINVERSION FACTOR: %d\n", nth->neuron_shared->chan1_nrn_mag,
             // nth->neuron_shared->invertType_ch1);
 
@@ -639,6 +588,7 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
                                          nth->neuron_shared->invertType_ch2) *
                                         (-0.1 / nth->_v_node[1]->_area);
         }
+    } else {
     }
 
     {
@@ -649,12 +599,44 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         nrn::Instrumentor::phase p("second-order-cur");
         second_order_cur(nth);
     }
+    if (nth->neuron_shared->Neuron_DC1_Mode) {
+        // Electronic Expression Mode
+        if (nth->neuron_shared->Electronic_Expression_Mode_ch1) {
+            // Voltage input is coming from DC1
+            *(nth->_v_node[1])->_v = nth->neuron_shared->V_mem_ch1;
+
+            // printf("(2) NrnThread->Node[1]->v: %g\n\n", *(nth->_v_node[1])->_v);
+
+            // printf("nth->neuron_shared->V_mem_ch1 = %g\n", nth->neuron_shared->V_mem_ch1);
+        } else if (nth->neuron_shared->Electronic_Expression_Mode_ch2) {
+            *(nth->_v_node[1])->_v = nth->neuron_shared->V_mem_ch2;
+        }
+        // Synthetic Cell Mode
+        else if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
+            // Voltage output is coming from Neuron
     {
         nrn::Instrumentor::phase p("update");
         update(nth);
-        nrnclk[10] = realtime();              // nrnVoltageUpdate
-        nrnval[3] = nth->_t + .5 * nth->_dt;  // nrnVoltageUpdateSimTime
-        nrnval[4] = *(nth->_v_node[1])->_v;   // nrnVoltageUpdateValue
+        nrnval[2] = nth->_t + .5 * nth->_dt;  // nrnVoltageUpdateSimTime
+        nrnval[3] = *(nth->_v_node[1])->_v;   // nrnVoltageUpdateValue
+    }
+
+            nth->neuron_shared->V_mem_ch1 = *(nth->_v_node[1])->_v;
+            // printf("nrn post voltage is ready\n");
+            nrnclk[1] = realtime();  // nrnPostVoltageIsReady
+            if (sem_post(&nth->neuron_shared->voltage_full)) {
+                perror("nrn sem_post error voltage full");
+                abort();
+            }
+        } else if (nth->neuron_shared->Synthetic_Cell_Mode_ch2) {
+            nth->neuron_shared->V_mem_ch2 = *(nth->_v_node[1])->_v;
+        }
+        // Cell Coupling Mode
+        if (nth->neuron_shared->Cell_Coupling_Mode_ch1) {
+            // Nothing for now
+        } else if (nth->neuron_shared->Cell_Coupling_Mode_ch2) {
+            // Nothing for now
+        }
     }
 
     if (nth->neuron_shared->Neuron_DC1_Mode) {
@@ -669,8 +651,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         }
     }
 
-    // printf("(nth->_v_node[1])->_rhs = %g\n", *(nth->_v_node[1])->_rhs);
-
     CTADD
     /*
       To simplify the logic,
@@ -680,54 +660,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         nrn_fixed_step_lastpart(nth);
     }
 
-#if 0
-    // leigh - below
-
-	clock_gettime(CLOCK_MONOTONIC, &end_ts);
-	timeValues[1] = (BILLION*end_ts.tv_sec) + end_ts.tv_nsec;
-
-	deltaTimeArray = timeValues[1] - timeValues[0];
-	msTime = deltaTimeArray * pow(10, -6);
-
-	timeValues[0] = timeValues[1];
-	timeWindow += msTime;
-
-    //printf("Time to Solve is: %lf\n", msTime);
-
-    //printf("Total number of iterations: %d\n", num_iterations);
-    //printf("Overall time: %g\n", overall_time);
-    //printf("Average time per iteration: %g\n", overall_time/(double) num_iterations);
-
-	FILE *f = fopen("/home/cytocybernetics/Desktop/output.csv", "a");
-	if (f == NULL)
-	{
-		printf("Error opening file!\n");
-		exit(1);
-	}
-
-	fprintf(f, "%g,%g\n", nth->_t, nth->neuron_shared->V_mem_ch1);
-
-	fclose(f);
-
-#endif
-
-    if (nth->neuron_shared->Neuron_DC1_Mode) {
-        cyto_barrier_wait(CytoBarrierTiming);
-
-        nrnclk[5] = nth->neuron_shared->adc_read_current_time_nano;  // dc1ReadCurrent
-        nrnclk[6] = nth->neuron_shared->dac_write_begin_voltage_time_nano;  // dc1WriteVoltageBegin
-        nrnclk[7] = nth->neuron_shared->dac_write_end_voltage_time_nano;    // dc1WriteVoltageEnd
-        nrnclk[8] = nth->neuron_shared->dc1_wait_for_voltage_is_ready;  // dc1WaitForVoltageIsReady
-        nrnclk[9] = nth->neuron_shared->dc1_continue_voltage_is_ready;  // dc1ContinueVoltageIsReady
-        nrnclk[12] = nth->neuron_shared->adc_read_begin_current_time_nano; // dc1ReadCurrentBegin
-        nrnclk[13] = nth->neuron_shared->adc_read_end_current_time_nano; // dc1ReadCurrentEnd
-        nrnclk[14] = nth->neuron_shared->dc1_loop_begin_time_nano; // dc1LoopBegin
-        nrnclk[15] = nth->neuron_shared->dc1_loop_end_time_nano; // dc1LoopEnd
-
-        cyto_barrier_wait(CytoBarrierEnd);
-    }
-    // leigh - above
-    nrnclk[11] = realtime();  // nrnFixedStepLeave (after record so needs special processing)
     return nullptr;
 }
 

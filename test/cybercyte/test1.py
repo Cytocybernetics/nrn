@@ -6,13 +6,16 @@
 #    Note: Despite GUI appearance, the DC1 loop is waiting on a
 #          semaphore so it can read voltage from NEURON.
 # 4) In nrniv terminal window type: prun()
+#     When neuron finishes, writeraw() will write the recorded vectors to rawtime.dat
+#     and h.fill_dc1_array() will have dc1 write its stored arrays to dc1rawtime.dat
 # 5) Press STOP button in CytoDC1 window.
 #    Note: after prun, the DC1 loop is waiting on a semaphore.
 #    It is likely necessary to sudo kill -1 CytoDC1 even after exiting CytoDC1 GUI.
-# 6) In nrniv terminal window (to allow offline analysis of run timings) type: po.writeraw()
+#
+# 6) Exit neuron or ...
 # 7) In each nrniv Graph, select View/View=plot
 
-from neuron import h, gui
+from neuron import h
 
 pc = h.ParallelContext()
 
@@ -24,31 +27,21 @@ tvec = h.Vector().record(h._ref_t, sec=s).resize(50000)
 dtvec = h.Vector().record(h._ref_dt, sec=s).resize(50000)
 
 nrnclk_labels = [
-    "nrnFixedStepEntry",  # 0
-    "dc1BeginLoop",
-    "nrnPostVoltageIsReady",
-    "nrnWaitForCurrentIsReady",
     "nrnContinueCurrentIsReady",
-    "dc1ReadCurrent",
-    "dc1WriteVoltageBegin",
-    "dc1WriteVoltageEnd",
-    "dc1WaitForVoltageIsReady",
-    "dc1ContinueVoltageIsReady",
-    "nrnVoltageUpdate",
-    "nrnFixedStepLeave",  # 11
-    "dc1ReadCurrentBegin", # 12
-    "dc1ReadCurrentEnd", # 13
-    "dc1LoopBegin", # 14
-    "dc1LoopEnd", # 15
-    "msTime", # 16
+    "nrnPostVoltageIsReady",
+    "waitIFull",
 ]
 
 nrnval_labels = [
-    "dc1LoopIndex",  # 0 integer
     "nrnFixedStepEntrySimTime",  # ms
     "dc1CurrentIntoRHS",  # ??
     "nrnVoltageUpdateSimTime",  # ms
-    "nrnVoltageUpdateValue",  # 4 mV
+    "nrnVoltageUpdateValue",  # mV
+]
+
+dc1_labels = [
+    "dc1_adc_read_array",
+    "dc1_write_voltage_array",
 ]
 
 nrnclks = [
@@ -82,10 +75,10 @@ def readraw():
         v.label(nrnclk_labels[i])
     for i, v in enumerate(data[1]):
         v.label(nrnval_labels[i])
+    for i, v in enumerate(data[2]):
+        v.label(dc1_labels[i])
     return data
 
-
-gs = [h.Graph() for i in range(2)]
 
 
 def normalize(v):
@@ -108,33 +101,12 @@ def run(tstop):
     pc.set_maxstep(1000)
     h.finitialize(-65)
     pc.psolve(tstop)
-    for g in gs:
-        g.erase()
-    dtvec.label("nrndt")
-    dtvec.line(gs[1], 1, 1)
-    deriv(nrnclks[0]).line(gs[1], 2, 1)
-    # nrnclks[11] record takes place before assignment. So rotate toward 0 and
-    # copy nrnclk[11] into last element
-    nrnclks[11].rotate(-1).x[nrnclks[11].size() - 1] = h.nrnclk[11]
-
-    normalize(nrnclks[1]).line(gs[0], 1, 1)
-    normalize(nrnclks[0]).line(gs[0], 2, 1)
+    h.fill_dc1_array()
+    writeraw()
 
 
 def sub(i, j):
     return nrnclks[i].c().sub(nrnclks[j]).mul(1e-6)
-
-
-def pltnrnvecs():
-    grphs = []
-    for i in range(1, 10):
-        g = h.Graph()
-        x = sub(i, i - 1).line(g)
-        g.label(0.4, 0.9, "nrnclk[%d] - nrnclk[%d]" % (i, i - 1))
-        g.label(nrnclks_labels[i] + " - " + nrnclks_labels[i - 1])
-        g.exec_menu("View = plot")
-        grphs.append((g, x))
-    return grphs
 
 
 h(
