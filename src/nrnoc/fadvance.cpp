@@ -518,8 +518,26 @@ void fill_dc1_array() { // 4 Vector args.
     hoc_retpushx(1.0);
 }
 
+static bool first_after_initialize{false};
+
 void* nrn_fixed_step_thread(NrnThread* nth) {
-    double wt;
+ 
+   if (first_after_initialize) {
+       // run.sh launched DC1 and then launched nrniv test.py -
+       // test.py called finitialize and then psolve and so here we are
+       // at t = 0.  But DC1 may not yet have completed its launch, and
+       // certainly the user has not yet pressed the DC1 run button.
+       // So we need to wait here til DC1 gets to just before its loop
+       // at which point it will post IadcFull (Though Iadc has not yet
+       // been read). And begin its wait for VdacFull to get the
+       // initial voltage from here.
+
+        first_after_initialize = false;
+        sem_wait(&nth->neuron_shared->current_full);
+        sem_post(&nth->neuron_shared->voltage_full);
+    }
+ 
+   double wt;
     {
         nrn::Instrumentor::phase p("deliver-events");
         deliver_net_events(nth);
@@ -541,6 +559,7 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         nrnval[0] = nth->_t;                             // nrnFixedStepEntrySimTime
         nth->_dt = nth->neuron_shared->msTime;
         dt = nth->_dt;
+        nrnval[4] = dt;
         nth->_t += .5 * nth->_dt;
     } else {
 #if ELIMINATE_T_ROUNDOFF
@@ -1142,6 +1161,7 @@ void nrn_finitialize(int setv, double v) {
   if (sem_init(&nrn_threads->neuron_shared->current_full, 1, 0 )) {
     perror("NRN sem_init current full error");
   }   
+  first_after_initialize = true;
 #endif
 
 

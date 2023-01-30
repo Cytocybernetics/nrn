@@ -9,7 +9,8 @@ nrnval_labels = [
     "nrnFixedStepEntrySimTime",  # ms
     "dc1CurrentIntoRHS",  # ??
     "nrnVoltageUpdateSimTime",  # ms
-    "nrnVoltageUpdateValue",  # 4 mV
+    "nrnVoltageUpdateValue",  # mV
+    "dt",  # ms
 ]
 
 # rawtimes are Vector.record from fadvance.cpp from the following statements

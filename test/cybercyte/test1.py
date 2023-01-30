@@ -42,6 +42,7 @@ nrnval_labels = [
     "dc1CurrentIntoRHS",  # ??
     "nrnVoltageUpdateSimTime",  # ms
     "nrnVoltageUpdateValue",  # mV
+    "dt",  # ms
 ]
 
 nrnclks = [
