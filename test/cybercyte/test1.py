@@ -30,6 +30,7 @@ nrnclk_labels = [
     "nrnContinueCurrentIsReady",
     "nrnPostVoltageIsReady",
     "waitIFull",
+    "msTime",
 ]
 
 nrnval_labels = [

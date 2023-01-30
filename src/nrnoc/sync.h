@@ -19,11 +19,8 @@ extern "C" {
  * 
  */
 typedef enum {
-    CytoBarrierStart,
-    CytoBarrierLoopIndex,
-    CytoBarrierMidpoint,
-    CytoBarrierTiming,
-    CytoBarrierEnd,
+    CytoBarrierBeginNeuron,
+    CytoBarrierEndNeuron,
     CytoBarrierSize // Must be last
 } cyto_barrier_id;
 

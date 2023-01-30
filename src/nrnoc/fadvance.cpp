@@ -506,15 +506,6 @@ void fill_dc1_array() { // 4 Vector args.
             pv[i] = p[iarg][i];
         }
     }
-#else
-    printf("sizeof neuron_shared %zd\n", sizeof(neuron_shared_data));
-    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
-    nth->neuron_shared->nrn_request_end_dc1_loop = 1;
-    pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
-    if (sem_post(&nth->neuron_shared->voltage_full)) {
-        perror("nrn sem_post error voltage full");
-        abort();
-    }
 #endif
     hoc_retpushx(1.0);
 }
@@ -529,13 +520,12 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
     wt = nrnmpi_wtime();
     nrn_random_play();
 
-    // printf("nrn wait for current_is_ready\n");
-    if (sem_wait(&nth->neuron_shared->current_full)) {
-        perror("nrn sem_wait error current full");
-        abort();
+    if (nth->neuron_shared->Neuron_DC1_Mode) {
+        cyto_barrier_wait(CytoBarrierBeginNeuron);
     }
-    nrnclk[2] = realtime(); // after waitIFull
 
+    nrnclk[3] = nth->neuron_shared->msTime;
+    nrnclk[2] = realtime(); // after waitIFull
 
     if (nth->neuron_shared->Neuron_DC1_Mode) {
         // printf("TRIGGERING DYNAMIC CLAMP MODE!\n");
@@ -624,19 +614,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
             nth->neuron_shared->V_mem_ch1 = *(nth->_v_node[1])->_v;
             // printf("nrn post voltage is ready\n");
             nrnclk[1] = realtime();  // nrnPostVoltageIsReady
-            if (sem_post(&nth->neuron_shared->voltage_full)) {
-                perror("nrn sem_post error voltage full");
-                abort();
-            }
-        } else if (nth->neuron_shared->Synthetic_Cell_Mode_ch2) {
-            nth->neuron_shared->V_mem_ch2 = *(nth->_v_node[1])->_v;
-        }
-        // Cell Coupling Mode
-        if (nth->neuron_shared->Cell_Coupling_Mode_ch1) {
-            // Nothing for now
-        } else if (nth->neuron_shared->Cell_Coupling_Mode_ch2) {
-            // Nothing for now
-        }
     }
 
     if (nth->neuron_shared->Neuron_DC1_Mode) {
@@ -649,6 +626,15 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         } else if (nth->neuron_shared->Electronic_Expression_Mode_ch2) {
             nth->neuron_shared->I_mem_ch2 = *(nth->_v_node[1])->_rhs;
         }
+        } else if (nth->neuron_shared->Synthetic_Cell_Mode_ch2) {
+            nth->neuron_shared->V_mem_ch2 = *(nth->_v_node[1])->_v;
+        }
+        // Cell Coupling Mode
+        if (nth->neuron_shared->Cell_Coupling_Mode_ch1) {
+            // Nothing for now
+        } else if (nth->neuron_shared->Cell_Coupling_Mode_ch2) {
+            // Nothing for now
+        }
     }
 
     CTADD
@@ -659,6 +645,8 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
     if (!nrnthread_v_transfer_) {
         nrn_fixed_step_lastpart(nth);
     }
+
+    cyto_barrier_wait(CytoBarrierEndNeuron);
 
     return nullptr;
 }
