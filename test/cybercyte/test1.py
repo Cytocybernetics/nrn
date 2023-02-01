@@ -1,3 +1,8 @@
+# 1) launch ./run.sh from terminal.
+# 2) Press RUN button in CytoDC1 window
+# 3) See results with python3.7 view1.py
+
+# Below is old way
 # 1) start CytoDC1. Make sure Neuron Simulation selected from OutputOne
 # 2) nrniv test1.py -  # note the trailing minus sign.
 #        Also note on my cybercyte system the gui often crashes when
@@ -64,7 +69,7 @@ def writeraw():
     import pickle
 
     with open("rawtime.dat", "wb") as f:
-        pickle.dump((nrnclks, nrnvals), f)
+        pickle.dump((nrnclks, nrnvals, h.nrnclk[19]), f)  # last is dc1_rtOrigin
 
 
 def readraw():

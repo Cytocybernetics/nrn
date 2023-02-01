@@ -28,7 +28,7 @@ def readraw():
     return data
 
 
-nrnclks, nrnvals = readraw()
+nrnclks, nrnvals, rtOrigin = readraw()
 
 # first record values (finitialize) are useless
 for v in nrnclks:
@@ -36,8 +36,8 @@ for v in nrnclks:
 for v in nrnvals:
     v.remove(0)
 
-# translate all time vectors relative to first value of nrnFixedStepEntry
-torigin = nrnclks[0][0]
+# translate all time vectors relative to rtOrigin
+torigin = rtOrigin
 for v in nrnclks:
     v.sub(torigin)
 
@@ -157,3 +157,15 @@ def pltv():
 
 
 pltv()
+
+
+def VdacMinusVSimTime():
+    g = h.Graph()
+    graphs.append(g)
+    g.label(0.1, 0.9, "Vdac Minus VUpdateSim Time")
+    n = nrnvals[2].size() - 1
+    dc1clks[2].c(1, n).sub(nrnvals[2].c(1, n).mul(1e6)).line(g, 1)
+    g.exec_menu("View = plot")
+
+
+VdacMinusVSimTime()

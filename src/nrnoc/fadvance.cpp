@@ -509,6 +509,7 @@ void fill_dc1_array() { // 4 Vector args.
     printf("sizeof neuron_shared %zd\n", sizeof(neuron_shared_data));
     pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
     nth->neuron_shared->nrn_request_end_dc1_loop = 1;
+    nrnclk[19] = nth->neuron_shared->dc1_rtOrigin;
     pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
     if (sem_post(&nth->neuron_shared->voltage_full)) {
         perror("nrn sem_post error voltage full");
@@ -520,6 +521,7 @@ void fill_dc1_array() { // 4 Vector args.
 
 static bool first_after_initialize{false};
 
+static int loop_index{0};
 void* nrn_fixed_step_thread(NrnThread* nth) {
  
    if (first_after_initialize) {
@@ -552,12 +554,18 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         abort();
     }
     nrnclk[2] = realtime(); // after waitIFull
+    double dtSoFar  = (nrnclk[2] - nth->neuron_shared->dc1_rtOrigin)*1e-6 - nth->_t;
 
+    if (loop_index != nth->neuron_shared->dc1_loop_index) {
+        printf("nrn_loop_index=%d  dc1_loop_index=%d\n", loop_index, nth->neuron_shared->dc1_loop_index);
+    }
+    loop_index++;
 
     if (nth->neuron_shared->Neuron_DC1_Mode) {
         // printf("TRIGGERING DYNAMIC CLAMP MODE!\n");
         nrnval[0] = nth->_t;                             // nrnFixedStepEntrySimTime
         nth->_dt = nth->neuron_shared->msTime;
+        nth->_dt = dtSoFar;
         dt = nth->_dt;
         nrnval[4] = dt;
         nth->_t += .5 * nth->_dt;
