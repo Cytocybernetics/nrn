@@ -94,7 +94,7 @@ void cyto_sync_init(bool creator)
     key_t key = ftok(shm_token, shm_id);
 
     if (key == -1) {
-        fprintf(stderr, "FATAL ERROR! Token for barriers failed: %s [%d]", strerror(errno), errno);
+        fprintf(stderr, "FATAL ERROR! Token for barriers failed: %s [%d]\n", strerror(errno), errno);
         exit(1);
     }
 
@@ -102,7 +102,7 @@ void cyto_sync_init(bool creator)
     int shmid = shmget(key, CytoBarrierSize*sizeof(cyto_barrier_t), 0666 | IPC_CREAT);
 
     if (shmid == -1) {
-        fprintf(stderr, "FATAL ERROR! Allocating barriers shared memory failed: %s [%d]", strerror(errno), errno);
+        fprintf(stderr, "FATAL ERROR! Allocating barriers shared memory failed: %s [%d] [%x]\n", strerror(errno), errno, key);
         exit(1);
     }
 

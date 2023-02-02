@@ -1,3 +1,8 @@
+# 1) launch ./run.sh from terminal.
+# 2) Press RUN button in CytoDC1 window
+# 3) See results with python3.7 view1.py
+
+# Below is old way
 # 1) start CytoDC1. Make sure Neuron Simulation selected from OutputOne
 # 2) nrniv test1.py -  # note the trailing minus sign.
 #        Also note on my cybercyte system the gui often crashes when
@@ -22,6 +27,11 @@ pc = h.ParallelContext()
 s = h.Section(name="soma")
 s.L = 3
 s.diam = 10
+s.insert("hh")
+ic = h.IClampQ(s(0.5))
+ic.delay = 1
+ic.dur = 0.1
+ic.amp = 0.3
 
 tvec = h.Vector().record(h._ref_t, sec=s).resize(50000)
 dtvec = h.Vector().record(h._ref_dt, sec=s).resize(50000)
@@ -38,11 +48,7 @@ nrnval_labels = [
     "dc1CurrentIntoRHS",  # ??
     "nrnVoltageUpdateSimTime",  # ms
     "nrnVoltageUpdateValue",  # mV
-]
-
-dc1_labels = [
-    "dc1_adc_read_array",
-    "dc1_write_voltage_array",
+    "dt",  # ms
 ]
 
 nrnclks = [
@@ -64,7 +70,7 @@ def writeraw():
     import pickle
 
     with open("rawtime.dat", "wb") as f:
-        pickle.dump((nrnclks, nrnvals), f)
+        pickle.dump((nrnclks, nrnvals, h.nrnclk[19]), f)  # last is dc1_rtOrigin
 
 
 def readraw():
@@ -76,8 +82,6 @@ def readraw():
         v.label(nrnclk_labels[i])
     for i, v in enumerate(data[1]):
         v.label(nrnval_labels[i])
-    for i, v in enumerate(data[2]):
-        v.label(dc1_labels[i])
     return data
 
 
@@ -109,6 +113,12 @@ def run(tstop):
 def sub(i, j):
     return nrnclks[i].c().sub(nrnclks[j]).mul(1e-6)
 
+
+run(10)
+import time
+
+time.sleep(2)
+quit()
 
 h(
     """

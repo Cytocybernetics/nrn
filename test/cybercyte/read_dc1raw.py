@@ -3,8 +3,10 @@ from neuron import h
 import struct
 
 dc1raw_labels = [
-    "dc1_adc_read_array",
-    "dc1_write_voltage_array",
+    "dc1_beforeIadc",
+    "dc1_afterIadc",
+    "dc1_beforeVdac",
+    "dc1_afterVdac",
 ]
 
 

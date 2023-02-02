@@ -19,6 +19,7 @@ extern "C" {
  * 
  */
 typedef enum {
+    CytoBarrierStart,
     CytoBarrierBeginNeuron,
     CytoBarrierEndNeuron,
     CytoBarrierSize // Must be last

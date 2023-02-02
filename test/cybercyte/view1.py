@@ -9,7 +9,8 @@ nrnval_labels = [
     "nrnFixedStepEntrySimTime",  # ms
     "dc1CurrentIntoRHS",  # ??
     "nrnVoltageUpdateSimTime",  # ms
-    "nrnVoltageUpdateValue",  # 4 mV
+    "nrnVoltageUpdateValue",  # mV
+    "dt",  # ms
 ]
 
 # rawtimes are Vector.record from fadvance.cpp from the following statements
@@ -38,7 +39,7 @@ def dumpcsv(clks, vals):
             for val in v: f.write("," + str(val))
             f.write("\n")
 
-nrnclks, nrnvals = readraw()
+nrnclks, nrnvals, rtOrigin = readraw()
 
 # first record values (finitialize) are useless
 for v in nrnclks:
@@ -46,8 +47,8 @@ for v in nrnclks:
 for v in nrnvals:
     v.remove(0)
 
-# translate all time vectors relative to first value of nrnFixedStepEntry
-torigin = nrnclks[0][0]
+# translate all time vectors relative to rtOrigin
+torigin = rtOrigin
 for v in nrnclks:
     v.sub(torigin)
 
@@ -84,25 +85,29 @@ dc1 Vdac: dc1_write_voltage_array  dc1_labels[1]
 except for size issues, Icontrib - Iadc, every element positive
 Vdac - Vcalc, every element positive
 """
-assert nrnclks[0].c(0, 39999).sub(dc1clks[0].c(0, 39999)).indvwhere("<=", 0).size() == 0
-assert dc1clks[1].c(0, 39999).sub(nrnclks[1].c(0, 39999)).indvwhere("<=", 0).size() == 0
+szv = nrnclks[0].size() - 1
+assert nrnclks[0].c(0, szv).sub(dc1clks[0].c(0, szv)).indvwhere("<=", 0).size() == 0
+assert dc1clks[2].c(0, szv).sub(nrnclks[1].c(0, szv)).indvwhere("<=", 0).size() == 0
 
 from neuron import h, gui
 
 
-last = 39998
+last = szv - 1
 z = [
-    dc1clks[0].cl(0, last),  # iadc
+    dc1clks[0].cl(0, last),  # beforeIadc
+    dc1clks[1].cl(0, last),  # afterIadc
     nrnclks[2].cl(0, last),  # waitIFull
     nrnclks[0].cl(0, last),  # Icontrib
     nrnclks[1].cl(0, last),  # Vcalc
-    dc1clks[1].cl(0, last),  # Vdac
+    dc1clks[2].cl(0, last),  # beforeVdac
+    dc1clks[3].cl(0, last),  # afterVdac
 ]
 nz = len(z)
-orig = z[1][0]
+orig = z[2][0]
 for v in z:
     v.sub(orig)
 z[0][0] = -10000
+z[1][0] = -9000
 for i, v in enumerate(z):
     print(i, v.c(0, 5).to_python(), v.label())
 for i in range(nz - 1):
@@ -119,6 +124,7 @@ def stepsize():
     g.label(0.1, 0.9)
     for i in range(1):
         z[0].c().deriv(1, 1).line(g)
+    g.exec_menu("View = plot")
 
 
 stepsize()
@@ -133,6 +139,7 @@ def event_pattern(begin=0, size=100):
         x = v.c(begin, begin + size - 1)
         x.c().fill(i + 1).mark(g, x, "|")
         g.label("%d %s" % (i, v.label()))
+    g.exec_menu("View = plot")
 
 
 def tdiff():
@@ -143,9 +150,33 @@ def tdiff():
         z[i + 1].c().sub(z[i]).line(g, 1, i + 1, 1)
         g.color(i + 1)
         g.label("%s - %s" % (z[i + 1].label(), z[i].label()))
-    z[0].c(1, last).sub(z[nz - 1].c(0, last - 1)).line(g, 1, nz + 1, 1)
-    g.color(nz + 1)
+    z[0].c(1, last).sub(z[nz - 1].c(0, last - 1)).line(g, 1, nz, 1)
+    g.color(nz)
     g.label("%s  - %s" % (z[0].label(), z[nz - 1].label()))
+    g.exec_menu("View = plot")
 
 
 tdiff()
+
+
+def pltv():
+    g = h.Graph()
+    graphs.append(g)
+    g.label(0.1, 0.9, "v(.5)")
+    nrnvals[3].c().line(g, nrnvals[2], 1, 1)
+    g.exec_menu("View = plot")
+
+
+pltv()
+
+
+def VdacMinusVSimTime():
+    g = h.Graph()
+    graphs.append(g)
+    g.label(0.1, 0.9, "Vdac Minus VUpdateSim Time")
+    n = nrnvals[2].size() - 1
+    dc1clks[2].c(1, n).sub(nrnvals[2].c(1, n).mul(1e6)).line(g, 1)
+    g.exec_menu("View = plot")
+
+
+VdacMinusVSimTime()

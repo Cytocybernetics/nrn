@@ -506,12 +506,36 @@ void fill_dc1_array() { // 4 Vector args.
             pv[i] = p[iarg][i];
         }
     }
+#else
+    printf("sizeof neuron_shared %zd\n", sizeof(neuron_shared_data));
+    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
+    nth->neuron_shared->nrn_request_end_dc1_loop = 1;
+    nrnclk[19] = nth->neuron_shared->dc1_rtOrigin;
+    pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
 #endif
     hoc_retpushx(1.0);
 }
 
+static bool first_after_initialize{false};
+
+static int loop_index{0};
 void* nrn_fixed_step_thread(NrnThread* nth) {
-    double wt;
+ 
+   if (first_after_initialize) {
+       // run.sh launched DC1 and then launched nrniv test.py -
+       // test.py called finitialize and then psolve and so here we are
+       // at t = 0.  But DC1 may not yet have completed its launch, and
+       // certainly the user has not yet pressed the DC1 run button.
+       // So we need to wait here til DC1 gets to just before its loop
+       // at which point it will post IadcFull (Though Iadc has not yet
+       // been read). And begin its wait for VdacFull to get the
+       // initial voltage from here.
+
+        first_after_initialize = false;
+        //cyto_barrier_wait(CytoBarrierStart);
+    }
+ 
+   double wt;
     {
         nrn::Instrumentor::phase p("deliver-events");
         deliver_net_events(nth);
@@ -523,15 +547,21 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
     if (nth->neuron_shared->Neuron_DC1_Mode) {
         cyto_barrier_wait(CytoBarrierBeginNeuron);
     }
-
-    nrnclk[3] = nth->neuron_shared->msTime;
     nrnclk[2] = realtime(); // after waitIFull
+    double dtSoFar  = (nrnclk[2] - nth->neuron_shared->dc1_rtOrigin)*1e-6 - nth->_t;
+
+    if (loop_index != nth->neuron_shared->dc1_loop_index) {
+        //printf("nrn_loop_index=%d  dc1_loop_index=%d\n", loop_index, nth->neuron_shared->dc1_loop_index);
+    }
+    loop_index++;
 
     if (nth->neuron_shared->Neuron_DC1_Mode) {
         // printf("TRIGGERING DYNAMIC CLAMP MODE!\n");
         nrnval[0] = nth->_t;                             // nrnFixedStepEntrySimTime
         nth->_dt = nth->neuron_shared->msTime;
+        nth->_dt = dtSoFar;
         dt = nth->_dt;
+        nrnval[4] = dt;
         nth->_t += .5 * nth->_dt;
     } else {
 #if ELIMINATE_T_ROUNDOFF
@@ -646,7 +676,9 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         nrn_fixed_step_lastpart(nth);
     }
 
-    cyto_barrier_wait(CytoBarrierEndNeuron);
+    if (nth->neuron_shared->Neuron_DC1_Mode) {
+        cyto_barrier_wait(CytoBarrierEndNeuron);
+    }
 
     return nullptr;
 }
@@ -1121,6 +1153,13 @@ void nrn_finitialize(int setv, double v) {
 
     nrn_fihexec(2); /* just before return */
     nrn::Instrumentor::phase_end("finitialize");
+
+#if 1
+    //cyto_barrier_wait(CytoBarrierStart);
+    first_after_initialize = true;
+#endif
+
+
 }
 
 void finitialize(void) {
