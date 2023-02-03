@@ -534,9 +534,9 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         first_after_initialize = false;
 
         if (nth->neuron_shared->Neuron_DC1_Mode) {
-            printf("Waiting at CytoBarrierStart\n");
+            printf("Neuron waiting at CytoBarrierStart\n");
             cyto_barrier_wait(CytoBarrierStart);
-            printf("Proceeding after CytoBarrierStart\n");
+            printf("Neuron proceeding after CytoBarrierStart\n");
         }
     }
  
