@@ -532,7 +532,12 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
        // initial voltage from here.
 
         first_after_initialize = false;
-        //cyto_barrier_wait(CytoBarrierStart);
+
+        if (nth->neuron_shared->Neuron_DC1_Mode) {
+            printf("Waiting at CytoBarrierStart\n");
+            cyto_barrier_wait(CytoBarrierStart);
+            printf("Proceeding after CytoBarrierStart\n");
+        }
     }
  
    double wt;

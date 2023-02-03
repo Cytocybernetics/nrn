@@ -28,6 +28,7 @@ s = h.Section(name="soma")
 s.L = 3
 s.diam = 10
 s.insert("hh")
+s.gkbar_hh = 0
 ic = h.IClampQ(s(0.5))
 ic.delay = 1
 ic.dur = 0.1
@@ -114,7 +115,7 @@ def sub(i, j):
     return nrnclks[i].c().sub(nrnclks[j]).mul(1e-6)
 
 
-run(10)
+run(20)
 import time
 
 time.sleep(2)
