@@ -41,7 +41,7 @@ nrnclk_labels = [
     "nrnContinueCurrentIsReady",
     "nrnPostVoltageIsReady",
     "waitIFull",
-    "msTime",
+    #    "msTime",
 ]
 
 nrnval_labels = [
@@ -86,7 +86,6 @@ def readraw():
     return data
 
 
-
 def normalize(v):
     x = v.c()
     x.x[0] = x.x[1]
@@ -104,6 +103,7 @@ def deriv(v):
 
 
 def run(tstop):
+    h.usetable_hh = 0  # with variable dt, do not recompute tables
     pc.set_maxstep(1000)
     h.finitialize(-65)
     pc.psolve(tstop)

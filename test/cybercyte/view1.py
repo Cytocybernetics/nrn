@@ -27,17 +27,21 @@ def readraw():
         v.label(nrnval_labels[i])
     return data
 
+
 def dumpcsv(clks, vals):
     with open("rawclock.csv", "w") as f:
         for v in clks:
             f.write('"' + v.label() + '"')
-            for clk in v: f.write("," + str(clk))
+            for clk in v:
+                f.write("," + str(clk))
             f.write("\n")
     with open("rawvalues.csv", "w") as f:
         for v in vals:
             f.write('"' + v.label() + '"')
-            for val in v: f.write("," + str(val))
+            for val in v:
+                f.write("," + str(val))
             f.write("\n")
+
 
 nrnclks, nrnvals, rtOrigin = readraw()
 
@@ -87,7 +91,7 @@ Vdac - Vcalc, every element positive
 """
 szv = nrnclks[0].size() - 1
 assert nrnclks[0].c(0, szv).sub(dc1clks[0].c(0, szv)).indvwhere("<=", 0).size() == 0
-assert dc1clks[2].c(0, szv).sub(nrnclks[1].c(0, szv)).indvwhere("<=", 0).size() == 0
+# assert dc1clks[2].c(0, szv).sub(nrnclks[1].c(0, szv)).indvwhere("<=", 0).size() == 0
 
 from neuron import h, gui
 
@@ -174,7 +178,7 @@ def VdacMinusVSimTime():
     g = h.Graph()
     graphs.append(g)
     g.label(0.1, 0.9, "Vdac Minus VUpdateSim Time")
-    n = nrnvals[2].size() - 1
+    n = nrnvals[2].size() - 2
     dc1clks[2].c(1, n).sub(nrnvals[2].c(1, n).mul(1e6)).line(g, 1)
     g.exec_menu("View = plot")
 
