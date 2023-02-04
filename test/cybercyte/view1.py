@@ -126,6 +126,7 @@ def stepsize():
     g = h.Graph()
     graphs.append(g)
     g.label(0.1, 0.9)
+    g.label("Time steps (ns) vs loopindex")
     for i in range(1):
         z[0].c().deriv(1, 1).line(g)
     g.exec_menu("View = plot")
