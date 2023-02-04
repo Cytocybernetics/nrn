@@ -101,6 +101,7 @@ def deriv(v):
 
 
 def run(tstop):
+    h.usetable_hh = 0
     pc.set_maxstep(1000)
     h.finitialize(-65)
     pc.psolve(tstop)
