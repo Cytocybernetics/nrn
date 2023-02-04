@@ -107,11 +107,6 @@ z = [
     dc1clks[3].cl(0, last),  # afterVdac
 ]
 nz = len(z)
-orig = z[2][0]
-for v in z:
-    v.sub(orig)
-z[0][0] = -10000
-z[1][0] = -9000
 for i, v in enumerate(z):
     print(i, v.c(0, 5).to_python(), v.label())
 for i in range(nz - 1):
