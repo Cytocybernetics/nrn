@@ -463,6 +463,47 @@ void* nrn_fixed_step_group_thread(NrnThread* nth) {
     return nullptr;
 }
 
+void* nrn_fixed_step_thread(NrnThread* nth) {
+    double wt;
+    {
+        nrn::Instrumentor::phase p("deliver-events");
+        deliver_net_events(nth);
+    }
+            
+    wt = nrnmpi_wtime();
+    nrn_random_play();
+#if ELIMINATE_T_ROUNDOFF  
+    nth->nrn_ndt_ += .5;
+    nth->_t = nrn_tbase_ + nth->nrn_ndt_ * nrn_dt_;
+#else
+    nth->_t += .5 * nth->_dt;
+#endif
+    fixed_play_continuous(nth);
+    setup_tree_matrix(nth);
+    {
+        nrn::Instrumentor::phase p("matrix-solver");
+        nrn_solve(nth);
+    }
+    {
+        nrn::Instrumentor::phase p("second-order-cur");
+        second_order_cur(nth);
+    }
+    {
+        nrn::Instrumentor::phase p("update");
+        update(nth);
+    }
+    CTADD
+    /*
+      To simplify the logic,
+      if there is no nrnthread_v_transfer then there cannot be an nrnmpi_v_transfer.
+    */
+    if (!nrnthread_v_transfer_) {
+        nrn_fixed_step_lastpart(nth);
+    }
+    return nullptr;
+}
+
+
 // leigh - below
 
 #include <math.h>
@@ -489,68 +530,40 @@ static size_t realtime() {
     return ((billion * ts.tv_sec) + ts.tv_nsec) & floatmask;
 }
 
-void fill_dc1_array() { // 4 Vector args.
+static int loop_index{0};
+static int nrndc1_step();
+
+void nrndc1_run() { // run til a barrier times out
+    // assert NRN finitialize has been called
+    //    or there have been previous calls to nrndc1_run.
     NrnThread* nth = nrn_threads;
-#if 0
-    size_t sz = nth->neuron_shared->dc1_loop_index;
-    size_t* p[4];
-    p[0] = nth->neuron_shared->dc1_time_array;
-    p[1] = nth->neuron_shared->dc1_wait_voltage_array;
-    p[2] = nth->neuron_shared->dc1_write_voltage_array;
-    p[3] = nth->neuron_shared->dc1_adc_read_array;
-    for (int iarg=0; iarg < 4; ++iarg) {
-        IvocVect* vec = vector_arg(iarg+1); // args start at 1
-        vector_resize(vec, sz);
-        double* pv = vector_vec(vec);
-        for (size_t i = 0; i < sz; ++i) {
-            pv[i] = p[iarg][i];
-        }
-    }
-#else
     printf("sizeof neuron_shared %zd\n", sizeof(neuron_shared_data));
-    pthread_mutex_lock(&nth->neuron_shared->ipc_mutex);
-    nth->neuron_shared->nrn_request_end_dc1_loop = 1;
+    // assert DC1 waiting at CytoBarrierStart
+    // tell DC1 the (starting) voltage for the DAC
+    nth->neuron_shared->V_mem_ch1 = *(nth->_v_node[1])->_v;
+    loop_index = 0;
+
+    printf("Neuron reached CytoBarrierStart at sim t=%g  V_mem_ch1 = %g\n", nth->_t, nth->neuron_shared->V_mem_ch1);
+    cyto_barrier_wait(CytoBarrierStart);
+    int finish = 0;
+    while (finish == 0) {
+        finish = nrndc1_step();
+    }
     nrnclk[19] = nth->neuron_shared->dc1_rtOrigin;
-    pthread_mutex_unlock(&nth->neuron_shared->ipc_mutex);
-#endif
+    printf("NEURON leaves nrndc1_run at sim t=%g loop_index=%d\n", nth->_t, loop_index);
     hoc_retpushx(1.0);
 }
 
-static bool first_after_initialize{false};
+static int nrndc1_step() {
+    NrnThread* nth = nrn_threads;
 
-static int loop_index{0};
-void* nrn_fixed_step_thread(NrnThread* nth) {
- 
-   if (first_after_initialize) {
-       // run.sh launched DC1 and then launched nrniv test.py -
-       // test.py called finitialize and then psolve and so here we are
-       // at t = 0.  But DC1 may not yet have completed its launch, and
-       // certainly the user has not yet pressed the DC1 run button.
-       // So we need to wait here til DC1 gets to just before its loop
-       // at which point it will post IadcFull (Though Iadc has not yet
-       // been read). And begin its wait for VdacFull to get the
-       // initial voltage from here.
-
-        first_after_initialize = false;
-
-        if (nth->neuron_shared->Neuron_DC1_Mode) {
-            printf("Neuron waiting at CytoBarrierStart\n");
-            cyto_barrier_wait(CytoBarrierStart);
-            printf("Neuron proceeding after CytoBarrierStart\n");
-        }
-    }
- 
-   double wt;
-    {
-        nrn::Instrumentor::phase p("deliver-events");
-        deliver_net_events(nth);
-    }
-
-    wt = nrnmpi_wtime();
+    deliver_net_events(nth);
     nrn_random_play();
 
     if (nth->neuron_shared->Neuron_DC1_Mode) {
-        cyto_barrier_wait(CytoBarrierBeginNeuron);
+        if (cyto_barrier_wait(CytoBarrierBeginNeuron) != CYTO_BARRIER_REASON_OK) {
+            return 1;
+        }
     }
     nrnclk[2] = realtime(); // after waitIFull
     double dtSoFar  = (nrnclk[2] - nth->neuron_shared->dc1_rtOrigin)*1e-6 - nth->_t;
@@ -568,13 +581,6 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         dt = nth->_dt;
         nrnval[4] = dt;
         nth->_t += .5 * nth->_dt;
-    } else {
-#if ELIMINATE_T_ROUNDOFF
-        nth->nrn_ndt_ += .5;
-        nth->_t = nrn_tbase_ + nth->nrn_ndt_ * nrn_dt_;
-#else
-        nth->_t += .5 * nth->_dt;
-#endif
     }
 
     fixed_play_continuous(nth);
@@ -616,39 +622,21 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
     } else {
     }
 
-    {
-        nrn::Instrumentor::phase p("matrix-solver");
-        nrn_solve(nth);
-    }
-    {
-        nrn::Instrumentor::phase p("second-order-cur");
-        second_order_cur(nth);
-    }
+    nrn_solve(nth);
+    second_order_cur(nth);
+
     if (nth->neuron_shared->Neuron_DC1_Mode) {
-        // Electronic Expression Mode
-        if (nth->neuron_shared->Electronic_Expression_Mode_ch1) {
-            // Voltage input is coming from DC1
-            *(nth->_v_node[1])->_v = nth->neuron_shared->V_mem_ch1;
-
-            // printf("(2) NrnThread->Node[1]->v: %g\n\n", *(nth->_v_node[1])->_v);
-
-            // printf("nth->neuron_shared->V_mem_ch1 = %g\n", nth->neuron_shared->V_mem_ch1);
-        } else if (nth->neuron_shared->Electronic_Expression_Mode_ch2) {
-            *(nth->_v_node[1])->_v = nth->neuron_shared->V_mem_ch2;
-        }
         // Synthetic Cell Mode
-        else if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
+        if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
             // Voltage output is coming from Neuron
-    {
-        nrn::Instrumentor::phase p("update");
-        update(nth);
-        nrnval[2] = nth->_t + .5 * nth->_dt;  // nrnVoltageUpdateSimTime
-        nrnval[3] = *(nth->_v_node[1])->_v;   // nrnVoltageUpdateValue
-    }
+            update(nth);
+            nrnval[2] = nth->_t + .5 * nth->_dt;  // nrnVoltageUpdateSimTime
+            nrnval[3] = *(nth->_v_node[1])->_v;   // nrnVoltageUpdateValue
 
             nth->neuron_shared->V_mem_ch1 = *(nth->_v_node[1])->_v;
             // printf("nrn post voltage is ready\n");
             nrnclk[1] = realtime();  // nrnPostVoltageIsReady
+        }    
     }
 
     if (nth->neuron_shared->Neuron_DC1_Mode) {
@@ -661,7 +649,7 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         } else if (nth->neuron_shared->Electronic_Expression_Mode_ch2) {
             nth->neuron_shared->I_mem_ch2 = *(nth->_v_node[1])->_rhs;
         }
-        } else if (nth->neuron_shared->Synthetic_Cell_Mode_ch2) {
+        if (nth->neuron_shared->Synthetic_Cell_Mode_ch2) {
             nth->neuron_shared->V_mem_ch2 = *(nth->_v_node[1])->_v;
         }
         // Cell Coupling Mode
@@ -672,20 +660,15 @@ void* nrn_fixed_step_thread(NrnThread* nth) {
         }
     }
 
-    CTADD
-    /*
-      To simplify the logic,
-      if there is no nrnthread_v_transfer then there cannot be an nrnmpi_v_transfer.
-    */
-    if (!nrnthread_v_transfer_) {
-        nrn_fixed_step_lastpart(nth);
-    }
+    assert(!nrnthread_v_transfer_);
+    nrn_fixed_step_lastpart(nth); // vector.record here
 
     if (nth->neuron_shared->Neuron_DC1_Mode) {
-        cyto_barrier_wait(CytoBarrierEndNeuron);
+        if (cyto_barrier_wait(CytoBarrierEndNeuron) != CYTO_BARRIER_REASON_OK) {
+            return 1;
+        }
     }
-
-    return nullptr;
+    return 0;
 }
 
 extern void nrn_extra_scatter_gather(int direction, int tid);
@@ -1158,13 +1141,6 @@ void nrn_finitialize(int setv, double v) {
 
     nrn_fihexec(2); /* just before return */
     nrn::Instrumentor::phase_end("finitialize");
-
-#if 1
-    //cyto_barrier_wait(CytoBarrierStart);
-    first_after_initialize = true;
-#endif
-
-
 }
 
 void finitialize(void) {

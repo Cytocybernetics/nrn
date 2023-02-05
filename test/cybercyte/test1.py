@@ -34,8 +34,7 @@ ic.delay = 1
 ic.dur = 0.1
 ic.amp = 0.3
 
-tvec = h.Vector().record(h._ref_t, sec=s).resize(50000)
-dtvec = h.Vector().record(h._ref_dt, sec=s).resize(50000)
+ARRAYSIZE = 1000000
 
 nrnclk_labels = [
     "nrnContinueCurrentIsReady",
@@ -53,14 +52,14 @@ nrnval_labels = [
 ]
 
 nrnclks = [
-    h.Vector().record(h._ref_nrnclk[i], sec=s).resize(50000).resize(0)
+    h.Vector().record(h._ref_nrnclk[i], sec=s).resize(ARRAYSIZE).resize(0)
     for i in range(len(nrnclk_labels))
 ]
 for i, v in enumerate(nrnclks):
     v.label(nrnclk_labels[i])
 
 nrnvals = [
-    h.Vector().record(h._ref_nrnval[i], sec=s).resize(50000).resize(0)
+    h.Vector().record(h._ref_nrnval[i], sec=s).resize(ARRAYSIZE).resize(0)
     for i in range(len(nrnval_labels))
 ]
 for i, v in enumerate(nrnvals):
@@ -106,8 +105,7 @@ def run(tstop):
     h.usetable_hh = 0  # with variable dt, do not recompute tables
     pc.set_maxstep(1000)
     h.finitialize(-65)
-    pc.psolve(tstop)
-    h.fill_dc1_array()
+    h.nrndc1_run()
     writeraw()
 
 
