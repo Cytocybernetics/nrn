@@ -569,10 +569,12 @@ static int nrndc1_step() {
     nrnclk[2] = realtime();  // after waitIFull
     double dtSoFar = (nrnclk[2] - nth->neuron_shared->dc1_rtOrigin) * 1e-6 - nth->_t;
 
+#if 0
     if (loop_index != nth->neuron_shared->dc1_loop_index) {
         printf("nrn_loop_index=%d  dc1_loop_index=%d\n", loop_index, nth->neuron_shared->dc1_loop_index);
         abort();
     }
+#endif
     loop_index++;
 
     // printf("TRIGGERING DYNAMIC CLAMP MODE!\n");
