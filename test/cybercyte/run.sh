@@ -6,4 +6,4 @@ DC1PROG=/home/cytocybernetics/Cybercyte/DC1/Codes/./CCC_DC1
 
 sudo echo "hello" # good time to enter root password if needed.
 
-sudo $DC1PROG 2>> $DC1LOG
+sudo taskset -c 6 $DC1PROG 2>> $DC1LOG
