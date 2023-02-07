@@ -11,7 +11,7 @@ ENDCOMMENT
 
 NEURON {
     POINT_PROCESS IClampQ
-    RANGE del, dur, amp, i
+    RANGE del, dur, amp, i, invl
     ELECTRODE_CURRENT i
 }
 UNITS {
@@ -22,25 +22,29 @@ PARAMETER {
     del (ms)
     dur (ms)    <0,1e9>
     amp (nA)
+    invl = 20 (ms)
 }
 
 ASSIGNED {
     i (nA)
     dt (ms)
+    strt (ms)
+    stp (ms)
 }
 
 INITIAL {
     i = 0
+    strt = del
+    stp = del + dur
 }
 
 BEFORE BREAKPOINT {
     : fixed step t is at tentry + dt/2
-    LOCAL stp, tm, tp, frac
+    LOCAL tm, tp, frac
   if (!cvode_active_) {
-    stp = del + dur
     tm = t - 0.5*dt
     tp = t + 0.5*dt
-    if (tp < del) { : before pulse
+    if (tp < strt) { : before pulse
         i = 0
     } else if (tm > stp) { : after pulse
         i = 0
@@ -55,18 +59,24 @@ BEFORE BREAKPOINT {
             : subtract portion from stp to tp
             frac = (tp - stp)/dt
             i = i - amp*frac
+            strt = strt + invl
+            stp = stp + invl
         }
     }
   }
 }
 
 BREAKPOINT {
-    at_time(del)
-    at_time(del + dur)
+    at_time(strt)
+    at_time(stp)
     if (cvode_active_) {
-        if (t < del + dur && t >= del) {
+        if ( t >= strt && t < stp) {
             i = amp
         }else{
+            if (t > stp) {
+                strt = strt + invl
+                stp = stp + invl
+            }
             i = 0
         }
     } else {

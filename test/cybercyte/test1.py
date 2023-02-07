@@ -1,38 +1,73 @@
 # 1) launch ./run.sh from terminal.
 # 2) Press RUN button in CytoDC1 window
-# 3) See results with python3.7 view1.py
-
-# Below is old way
-# 1) start CytoDC1. Make sure Neuron Simulation selected from OutputOne
-# 2) nrniv test1.py -  # note the trailing minus sign.
-#        Also note on my cybercyte system the gui often crashes when
-#        launching with nrniv -python test1.py. Perhaps due to gui thread.
-# 3) Press RUN button in CytoDC1 window.
-#    Note: Despite GUI appearance, the DC1 loop is waiting on a
-#          semaphore so it can read voltage from NEURON.
-# 4) In nrniv terminal window type: prun()
-#     When neuron finishes, writeraw() will write the recorded vectors to rawtime.dat
-#     and h.fill_dc1_array() will have dc1 write its stored arrays to dc1rawtime.dat
-# 5) Press STOP button in CytoDC1 window.
-#    Note: after prun, the DC1 loop is waiting on a semaphore.
-#    It is likely necessary to sudo kill -1 CytoDC1 even after exiting CytoDC1 GUI.
-#
-# 6) Exit neuron or ...
-# 7) In each nrniv Graph, select View/View=plot
+# 3) After some sim time Press STOP button in CytoDC1 window
+# 4) Exit from CytoDC1
+# 5) See results with python3.7 view1.py
 
 from neuron import h
 
 pc = h.ParallelContext()
 
+# The NEURON model to be simulated (e.g. hh patch)
 s = h.Section(name="soma")
 s.L = 3
 s.diam = 10
 s.insert("hh")
-s.gkbar_hh = 0
+s.gkbar_hh = 0.036
 ic = h.IClampQ(s(0.5))
 ic.delay = 1
 ic.dur = 0.1
 ic.amp = 0.3
+
+# DC1 access location
+# pp = h.NrnDC1Clamp(segment)
+# Synthetic Cell Mode (must be consistent with DC1)
+# DC1 reads external current and that gets copied to pp.ic
+# DC1 writes external voltage from v (at the location of pp)
+
+# For Electronic Expression Mode, pp.gc should be set to a large value
+# so that segment.v tracks pp.vc very closely.
+# DC1 reads external voltage and that gets copied to pp.vc
+# DC1 writes external current from pp.i
+# It likely makes sense to set segment.cm of this location to 0. For
+# a single compartment, that means total ionic current (without
+# capacitance current (but with stimulus current (which should
+# not exist))).  For a multicompartment (whole cell) model, that
+# means total ionic current plus net axial current into the
+# compartment.
+
+
+class DC1Access:
+    def __init__(self, seg, mode="SyntheticCellMode", rest=-65.0):
+        self.clamp = h.NrnDC1Clamp(seg)
+        if mode == "SyntheticCellMode":
+            self.SyntheticCellMode()
+        elif mode == "ElectronicExpressionMode":
+            self.ElectronicExpressionMode(rest)
+        else:
+            raise ValueError("Invalid mode name")
+
+    def relocate(self, seg):
+        self.clamp.loc(seg)
+
+    def SyntheticCellMode(self):
+        self.mode = "SyntheticCellMode"
+        c = self.clamp
+        c.gc = 0
+        self.dc1read = c._ref_ic
+        self.dc1write = c.get_segment()._ref_v
+
+    def ElectronicExpressionMode(self, rest=-65.0):
+        self.mode = "ElectronicExpressionMode"
+        c = self.clamp
+        c.gc = 10  # (uS) (10uS equivalent to 0.1 MOhm)
+        c.vc = rest
+        c.ic = 0
+        self.dc1read = c._ref_vc
+        self.dc1write = c._ref_i
+
+
+dc1access = DC1Access(s(0.5))
 
 ARRAYSIZE = 1000000
 
@@ -102,10 +137,14 @@ def deriv(v):
 
 
 def run(tstop):
-    h.usetable_hh = 0  # with variable dt, do not recompute tables
+    try:
+        # may or may not exist depending on cmake configuration
+        h.usetable_hh = 0  # with variable dt, do not recompute tables
+    except:
+        pass
     pc.set_maxstep(1000)
     h.finitialize(-65)
-    h.nrndc1_run()
+    h.nrndc1_run(dc1access.mode, dc1access.dc1read, dc1access.dc1write)
     writeraw()
 
 
