@@ -76,6 +76,13 @@ void cyto_barrier_break(cyto_barrier_id barrier_id, cyto_barrier_reason reason);
 void cyto_barrier_set_timeout(cyto_barrier_id barrier_id, struct timespec timeout);
 
 /**
+ * @brief Private function to reset barrier to a known usable state
+ * 
+ * @param barrier_id The barrier index
+ */
+void cyto_barrier_reset(cyto_barrier_id barrier_id);
+
+/**
  * @brief Wait for synchronization with another process using the specified barrier.
  * 
  * The barrier index must be in the range 0 to CytoBarrierSize-1.

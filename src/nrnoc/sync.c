@@ -143,13 +143,9 @@ void cyto_barrier_set_timeout(cyto_barrier_id barrier_index, struct timespec tim
     barriers[barrier_index].timeout = timeout.tv_sec * 1000000000 + timeout.tv_nsec;
 }
 
-/**
- * @brief Private function to reset barrier to a known usable state
- * 
- * @param barrier 
- */
-static void cyto_barrier_reset(cyto_barrier_t* barrier)
+void cyto_barrier_reset(cyto_barrier_id barrier_id)
 {
+    cyto_barrier_t* barrier = &barriers[barrier_id];
     barrier->spaces = barrier->count;
     barrier->generation = 0;
     barrier->abort = false;
@@ -180,7 +176,6 @@ cyto_barrier_reason cyto_barrier_wait(cyto_barrier_id barrier_index, void (*brea
             break_check_fn(barrier_index, break_check_data);
 
             if (barrier->abort) {
-                cyto_barrier_reset(barrier);
                 return barrier->reason;
             }
 
@@ -192,7 +187,6 @@ cyto_barrier_reason cyto_barrier_wait(cyto_barrier_id barrier_index, void (*brea
 
             if ((current - start) > barrier->timeout) {
                 fprintf(stderr, "WARNING: Cyto Barrier %d Timed Out\n", barrier_index);
-                cyto_barrier_reset(barrier);
                 return CYTO_BARRIER_REASON_TIMEOUT;
             }
         }
