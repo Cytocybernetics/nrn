@@ -533,6 +533,20 @@ static size_t realtime() {
 static int loop_index{0};
 static int nrndc1_step();
 
+/**
+ * @brief A function that can be passed to cyto_barrier_wait() to break out of waiting loop
+ * 
+ * @param barrier_index The barrier index that is invoking the callback function
+ * @param neuron_shared The shared memory segment that among other things contain the kill_models flag used to abort the wait
+ */
+static void cyto_barrier_break_check(cyto_barrier_id barrier_id, void* data)
+{
+  neuron_shared_data* neuron_shared = (neuron_shared_data*)data;
+  if (neuron_shared->dc1_request_end_nrn_loop) {
+    cyto_barrier_break(barrier_id, CYTO_BARRIER_REASON_BREAK);
+  }
+}
+
 void nrndc1_run() {  // run til a barrier times out
     // assert NRN finitialize has been called
     //    or there have been previous calls to nrndc1_run.
@@ -546,7 +560,10 @@ void nrndc1_run() {  // run til a barrier times out
     printf("Neuron reached CytoBarrierStart at sim t=%g  V_mem_ch1 = %g\n",
            nth->_t,
            nth->neuron_shared->V_mem_ch1);
-    cyto_barrier_wait(CytoBarrierStart);
+    if (cyto_barrier_wait(CytoBarrierStart, cyto_barrier_break_check, nth->neuron_shared) != CYTO_BARRIER_REASON_OK) {
+        printf("NEURON leaving nrndc1_run() due to aborted cyto_barrier_wait()\n");
+        return;
+    }
     int finish = 0;
     while (finish == 0) {
         finish = nrndc1_step();
@@ -559,10 +576,16 @@ void nrndc1_run() {  // run til a barrier times out
 static int nrndc1_step() {
     NrnThread* nth = nrn_threads;
 
+    if (nth->neuron_shared->dc1_request_end_nrn_loop) {
+        printf("DC1 requested NEURON to exit processing loop\n");
+        return 1;
+    }
+
     deliver_net_events(nth);
     nrn_random_play();
 
-    if (cyto_barrier_wait(CytoBarrierBeginNeuron) != CYTO_BARRIER_REASON_OK) {
+    if (cyto_barrier_wait(CytoBarrierBeginNeuron, cyto_barrier_break_check, nth->neuron_shared) != CYTO_BARRIER_REASON_OK) {
+        printf("NEURON nrndc1_step() exiting due to breaking out of cyto_barrier_wait()\n");
         return 1;
     }
 
@@ -639,7 +662,8 @@ static int nrndc1_step() {
     assert(!nrnthread_v_transfer_);
     nrn_fixed_step_lastpart(nth);  // vector.record here
 
-    if (cyto_barrier_wait(CytoBarrierEndNeuron) != CYTO_BARRIER_REASON_OK) {
+    if (cyto_barrier_wait(CytoBarrierEndNeuron, cyto_barrier_break_check, nth->neuron_shared) != CYTO_BARRIER_REASON_OK) {
+        printf("NEURON nrndc1_step() exiting due to breaking out of cyto_barrier_wait()\n");
         return 1;
     }
 

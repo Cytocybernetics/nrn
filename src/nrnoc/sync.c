@@ -131,14 +131,14 @@ void cyto_sync_cleanup()
     shmdt(barriers);
 }
 
-void cyto_barrier_break(size_t barrier_index, cyto_barrier_reason reason)
+void cyto_barrier_break(cyto_barrier_id barrier_index, cyto_barrier_reason reason)
 {
     cyto_barrier_t* barrier = &barriers[barrier_index];
     barrier->reason = reason;
     barrier->abort = true;
 }
 
-void cyto_barrier_set_timeout(size_t barrier_index, struct timespec timeout)
+void cyto_barrier_set_timeout(cyto_barrier_id barrier_index, struct timespec timeout)
 {
     barriers[barrier_index].timeout = timeout.tv_sec * 1000000000 + timeout.tv_nsec;
 }
@@ -155,7 +155,7 @@ static void cyto_barrier_reset(cyto_barrier_t* barrier)
     barrier->abort = false;
 }
 
-cyto_barrier_reason cyto_barrier_wait(cyto_barrier_id barrier_index)
+cyto_barrier_reason cyto_barrier_wait(cyto_barrier_id barrier_index, void (*break_check_fn)(cyto_barrier_id,  void*), void* break_check_data)
 {
     cyto_barrier_t* barrier = &barriers[barrier_index];
     unsigned int my_generation = barrier->generation;
@@ -177,6 +177,8 @@ cyto_barrier_reason cyto_barrier_wait(cyto_barrier_id barrier_index)
         // Wait until the last thread or process to arrive increments the generation
         // or a timeout or break condition occurs
         while (barrier->generation == my_generation) {
+            break_check_fn(barrier_index, break_check_data);
+
             if (barrier->abort) {
                 cyto_barrier_reset(barrier);
                 return barrier->reason;

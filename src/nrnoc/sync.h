@@ -63,7 +63,7 @@ void cyto_sync_cleanup();
  * @param barrier_index The barrier to break out of
  * @param reason The reason for breaking out of the wait state
  */
-void cyto_barrier_break(size_t barrier_index, cyto_barrier_reason reason);
+void cyto_barrier_break(cyto_barrier_id barrier_id, cyto_barrier_reason reason);
 
 /**
  * @brief Define the timeout value for the specified barrier.
@@ -73,17 +73,18 @@ void cyto_barrier_break(size_t barrier_index, cyto_barrier_reason reason);
  * @param barrier_index The barrier index
  * @param timeout The timeout value
  */
-void cyto_barrier_set_timeout(size_t barrier_index, struct timespec timeout);
+void cyto_barrier_set_timeout(cyto_barrier_id barrier_id, struct timespec timeout);
 
 /**
  * @brief Wait for synchronization with another process using the specified barrier.
  * 
  * The barrier index must be in the range 0 to CytoBarrierSize-1.
  * 
- * @param barrier_id 
+ * @param barrier_id The barrier id
+ * @param break_check_fn A custom function that can be used to abort the wait loop
  * @return cyto_barrier_reason 
  */
-cyto_barrier_reason cyto_barrier_wait(cyto_barrier_id barrier_id);
+cyto_barrier_reason cyto_barrier_wait(cyto_barrier_id barrier_id, void (*break_check_fn)(cyto_barrier_id, void*), void* break_check_data);
 
 #ifdef __cplusplus
 }
