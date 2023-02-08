@@ -551,22 +551,32 @@ static void cyto_barrier_break_check(cyto_barrier_id barrier_id, void* data)
 
 void nrndc1_run() {  // run til a barrier times out
 
+    NrnThread* nth = nrn_threads;
     const char* modename = hoc_gargstr(1);
+    if (strcmp(modename, "SyntheticCellMode") == 0) {
+        assert(nth->neuron_shared->Synthetic_Cell_Mode_ch1);
+    }
+    if (strcmp(modename, "ElectronicExpressionMode") == 0) {
+        assert(nth->neuron_shared->Electronic_Expression_Mode_ch1);
+    }
     dc1_read = hoc_pgetarg(2);
     dc1_write = hoc_pgetarg(3);
 
     // assert NRN finitialize has been called
     //    or there have been previous calls to nrndc1_run.
-    NrnThread* nth = nrn_threads;
     printf("sizeof neuron_shared %zd\n", sizeof(neuron_shared_data));
     // assert DC1 waiting at CytoBarrierStart
-    // tell DC1 the (starting) voltage for the DAC
-    nth->neuron_shared->V_mem_ch1 = *dc1_write;
+    if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
+        // Voltage output from NrnDC1Clamp.get_segment().v
+        // tell DC1 the (starting) voltage for the DAC
+        nth->neuron_shared->V_mem_ch1 = *dc1_write;
+    } else if (nth->neuron_shared->Electronic_Expression_Mode_ch1) {
+        // Current output from NrnDC1Clamp.i (initialized to 0)
+        nth->neuron_shared->I_mem_ch1 = *dc1_write;
+    }
     loop_index = 0;
 
-    printf("Neuron reached CytoBarrierStart at sim t=%g  V_mem_ch1 = %g\n",
-           nth->_t,
-           nth->neuron_shared->V_mem_ch1);
+    printf("Neuron reached CytoBarrierStart at sim t=%g  Output = %g\n", nth->_t, *dc1_write);
     if (cyto_barrier_wait(CytoBarrierStart, cyto_barrier_break_check, nth->neuron_shared) != CYTO_BARRIER_REASON_OK) {
         printf("NEURON leaving nrndc1_run() due to aborted cyto_barrier_wait()\n");
         return;
@@ -615,14 +625,15 @@ static int nrndc1_step() {
     nth->_t += .5 * nth->_dt;
 
     nrnclk[0] = realtime();  // nrnContinueCurrentIsReady
-    // Synthetic Cell Mode
     if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
-        double ch1cur = (nth->neuron_shared->I_mem_ch1 * nth->neuron_shared->chan1_nrn_mag *
+        // Current input to NrnDC1Clamp.ic
+        *dc1_read = (nth->neuron_shared->I_mem_ch1 * nth->neuron_shared->chan1_nrn_mag *
                          nth->neuron_shared->invertType_ch1);
-
-        *dc1_read = ch1cur;
-        nrnval[1] = ch1cur;  // dc1CurrentIntoRHS
+    } else if (nth->neuron_shared->Electronic_Expression_Mode_ch1) {
+        // Voltage input to NrnDC1Clamp.vc
+        *dc1_read = nth->neuron_shared->V_mem_ch1;
     }
+    nrnval[1] = *dc1_read;  // dc1CurrentIntoRHS
 
     fixed_play_continuous(nth);
     setup_tree_matrix(nth);
@@ -632,13 +643,15 @@ static int nrndc1_step() {
 
     // Synthetic Cell Mode
     if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
-        // Voltage output is coming from Neuron
-        nrnval[2] = nth->_t + .5 * nth->_dt;  // nrnVoltageUpdateSimTime
-        nrnval[3] = *dc1_write;   // nrnVoltageUpdateValue
-
+        // Voltage output from NrnDC1Clamp.get_segment().v
         nth->neuron_shared->V_mem_ch1 = *dc1_write;
-        nrnclk[1] = realtime();  // nrnPostVoltageIsReady
+    } else if (nth->neuron_shared->Electronic_Expression_Mode_ch1) {
+        // Current output from NrnDC1Clamp.i
+        nth->neuron_shared->I_mem_ch1 = *dc1_write;  // Scaling?
     }
+    nrnclk[1] = realtime();  // nrnPostVoltageIsReady
+    nrnval[2] = nth->_t + .5 * nth->_dt;  // nrnVoltageUpdateSimTime
+    nrnval[3] = *dc1_write;   // nrnVoltageUpdateValue
 
     assert(!nrnthread_v_transfer_);
     nrn_fixed_step_lastpart(nth);  // vector.record here
