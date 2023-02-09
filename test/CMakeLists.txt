@@ -34,13 +34,7 @@ endforeach()
 # =============================================================================
 # Copy necessary hoc files to build directory if they have not been copied yet
 # =============================================================================
-if(NOT TARGET hoc_module)
-  add_custom_command(
-    TARGET testneuron
-    POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/share/lib
-            ${PROJECT_BINARY_DIR}/share/nrn/lib)
-endif()
+add_dependencies(testneuron copy_share_lib_to_build)
 
 # =============================================================================
 # Unit tests  (testneuron, ...)
@@ -352,6 +346,16 @@ if(NRN_ENABLE_PYTHON AND PYTEST_FOUND)
         ${MPIEXEC_POSTFLAGS}
         -notatty
         -python)
+    set(modtests_launch_py_mpi_subworlds
+        ${MPIEXEC_NAME}
+        ${MPIEXEC_NUMPROC_FLAG}
+        6
+        ${MPIEXEC_OVERSUBSCRIBE}
+        ${MPIEXEC_PREFLAGS}
+        special
+        ${MPIEXEC_POSTFLAGS}
+        -notatty
+        -python)
   else()
     set(modtests_preload_sanitizer PRELOAD_SANITIZER)
     set(modtests_launch_py ${PYTHON_EXECUTABLE} ${pytest})
@@ -360,6 +364,15 @@ if(NRN_ENABLE_PYTHON AND PYTEST_FOUND)
         ${MPIEXEC_NAME}
         ${MPIEXEC_NUMPROC_FLAG}
         2
+        ${MPIEXEC_OVERSUBSCRIBE}
+        ${MPIEXEC_PREFLAGS}
+        ${preload_sanitizer_mpiexec}
+        ${PYTHON_EXECUTABLE}
+        ${MPIEXEC_POSTFLAGS})
+    set(modtests_launch_py_mpi_subworlds
+        ${MPIEXEC_NAME}
+        ${MPIEXEC_NUMPROC_FLAG}
+        6
         ${MPIEXEC_OVERSUBSCRIBE}
         ${MPIEXEC_PREFLAGS}
         ${preload_sanitizer_mpiexec}
@@ -596,6 +609,15 @@ if(NRN_ENABLE_PYTHON AND PYTEST_FOUND)
           ${MPIEXEC_NAME} ${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_OVERSUBSCRIBE} ${MPIEXEC_PREFLAGS}
           special ${MPIEXEC_POSTFLAGS} -mpi -python
           ${PROJECT_SOURCE_DIR}/test/coreneuron/test_inputpresyn.py)
+      nrn_add_test(
+        GROUP coreneuron_modtests
+        NAME test_subworlds_py_${processor}
+        REQUIRES coreneuron ${processor} ${modtests_preload_sanitizer}
+        SCRIPT_PATTERNS test/coreneuron/test_subworlds.py
+        PROCESSORS 6
+        ENVIRONMENT ${modtests_processor_env} ${nrnpython_mpi_env}
+                    COVERAGE_FILE=.coverage.coreneuron_test_subworlds_py
+        COMMAND ${modtests_launch_py_mpi_subworlds} test/coreneuron/test_subworlds.py)
     endif()
     nrn_add_test_group(
       NAME nmodl_tests_coreneuron

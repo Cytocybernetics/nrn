@@ -102,11 +102,7 @@ mark_as_advanced(NRN_WHEEL_BUILD)
 # Build options (string)
 # =============================================================================
 # ~~~
-# NEURON module installation:
-#   - OFF       : do not install
-#   - ON        : install with --home in ${CMAKE_INSTALL_PREFIX}
-#   - <string>  : install using other modes or locations using an appropriate
-#                 string that goes after python setup.py install
+# NOTE: NEURON modules will also be installed in ${CMAKE_INSTALL_PREFIX}
 # Dynamic Python version support:
 #   - OFF       : nrnpython interface is linked into libnrniv.so
 #   - ON        : nrnpython interface consistent with default python3 (falling back to python)
@@ -132,10 +128,6 @@ mark_as_advanced(NRN_WHEEL_BUILD)
 # ~~~
 option(NRN_ENABLE_MODULE_INSTALL "Enable installation of NEURON Python module"
        ${NRN_ENABLE_MODULE_INSTALL_DEFAULT})
-set(NRN_MODULE_INSTALL_OPTIONS
-    "${NRN_MODULE_INSTALL_OPTIONS_DEFAULT}"
-    CACHE STRING "setup.py options, everything after setup.py install")
-
 option(NRN_ENABLE_PYTHON_DYNAMIC "Enable dynamic Python version support"
        ${NRN_ENABLE_PYTHON_DYNAMIC_DEFAULT})
 set(NRN_PYTHON_DYNAMIC
@@ -414,11 +406,11 @@ endif()
 # Enable Python support
 # =============================================================================
 
-find_package(PythonInterp 3.7 REQUIRED)
+find_package(PythonInterp 3.8 REQUIRED)
 if(NRN_ENABLE_PYTHON)
   # start afresh with PythonLibsNew's find_library without this, -DPYTHON_EXECUTABLE=`which python3`
-  # -DNRN_PYTHON_DYNAMIC="python3.7;python3.9" would end up with a NRN_DEFAULT_PYTHON_LIBRARIES of
-  # /usr/lib/x86_64-linux-gnu/libpython3.7.so
+  # -DNRN_PYTHON_DYNAMIC="python3.8;python3.9" would end up with a NRN_DEFAULT_PYTHON_LIBRARIES of
+  # /usr/lib/x86_64-linux-gnu/libpython3.8.so
   unset(PYTHON_LIBRARY CACHE)
 
   find_package(PythonLibsNew ${PYTHON_VERSION_MAJOR} REQUIRED)
@@ -584,6 +576,30 @@ endif()
 # Add project directories AFTER CMake modules
 # =============================================================================
 add_subdirectory(src/nrniv)
+
+# Collect the environment variables that are needed to execute NEURON from the build directory. This
+# is used when configuring tests, and when building documentation targets.
+function(prepend_to_var var new_path)
+  set(old_list "${NRN_RUN_FROM_BUILD_DIR_ENV}")
+  set(new_val "${var}=${new_path}")
+  if(DEFINED ENV{${var}} AND NOT "$ENV{${var}}" STREQUAL "")
+    string(APPEND new_val ":$ENV{${var}}")
+  endif()
+  list(APPEND old_list "${new_val}")
+  set(NRN_RUN_FROM_BUILD_DIR_ENV
+      "${old_list}"
+      PARENT_SCOPE)
+endfunction()
+set(NRN_RUN_FROM_BUILD_DIR_ENV "NEURONHOME=${PROJECT_BINARY_DIR}/share/nrn"
+                               "NRNHOME=${PROJECT_BINARY_DIR}")
+prepend_to_var(PATH "${PROJECT_BINARY_DIR}/bin")
+prepend_to_var(LD_LIBRARY_PATH "${PROJECT_BINARY_DIR}/lib")
+if(NRN_ENABLE_CORENEURON)
+  list(APPEND NRN_RUN_FROM_BUILD_DIR_ENV "CORENRNHOME=${PROJECT_BINARY_DIR}")
+endif()
+if(NRN_ENABLE_PYTHON)
+  prepend_to_var(PYTHONPATH "${PROJECT_BINARY_DIR}/lib/python:${PROJECT_SOURCE_DIR}/test/rxd")
+endif()
 add_subdirectory(bin)
 
 if(NRN_ENABLE_PYTHON)
@@ -604,31 +620,6 @@ endif()
 
 if(MINGW)
   add_subdirectory(src/mswin)
-endif()
-
-# Collect the environment variables that are needed to execute NEURON from the build directory. This
-# is used when configuring tests, and when building documentation targets.
-function(prepend_to_var var new_path)
-  set(old_list "${NRN_RUN_FROM_BUILD_DIR_ENV}")
-  set(new_val "${var}=${new_path}")
-  if(DEFINED ENV{${var}} AND NOT "$ENV{${var}}" STREQUAL "")
-    string(APPEND new_val ":$ENV{${var}}")
-  endif()
-  list(APPEND old_list "${new_val}")
-  set(NRN_RUN_FROM_BUILD_DIR_ENV
-      "${old_list}"
-      PARENT_SCOPE)
-endfunction()
-set(NRN_RUN_FROM_BUILD_DIR_ENV "NEURONHOME=${PROJECT_BINARY_DIR}/share/nrn"
-                               "NRNHOME=${PROJECT_BINARY_DIR}")
-prepend_to_var(PATH "${PROJECT_BINARY_DIR}/bin")
-prepend_to_var(LD_LIBRARY_PATH "${PROJECT_BINARY_DIR}/lib")
-if(NRN_ENABLE_CORENEURON AND NOT coreneuron_FOUND)
-  # CoreNEURON is enabled *and* is being built internally
-  list(APPEND NRN_RUN_FROM_BUILD_DIR_ENV "CORENRNHOME=${PROJECT_BINARY_DIR}")
-endif()
-if(NRN_ENABLE_PYTHON)
-  prepend_to_var(PYTHONPATH "${PROJECT_BINARY_DIR}/lib/python:${PROJECT_SOURCE_DIR}/test/rxd")
 endif()
 
 if(NRN_ENABLE_DOCS)
@@ -781,17 +772,40 @@ add_dependencies(nrniv_lib hh_update)
 if(NRN_ENABLE_PYTHON)
   add_custom_target(
     help_data_dat
-    COMMAND
-      ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/docs/parse_rst.py ${PROJECT_SOURCE_DIR}/docs/python
-      ${PROJECT_SOURCE_DIR}/share/lib/python/neuron/help_data.dat
-    COMMAND
-      ${CMAKE_COMMAND} -E copy_if_different
-      ${PROJECT_SOURCE_DIR}/share/lib/python/neuron/help_data.dat
-      ${PROJECT_BINARY_DIR}/lib/python/neuron/help_data.dat
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_BINARY_DIR}/lib/python/neuron
+    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/docs/parse_rst.py
+            ${PROJECT_SOURCE_DIR}/docs/python ${PROJECT_BINARY_DIR}/lib/python/neuron/help_data.dat
     COMMENT "Generating help_data.dat"
     VERBATIM)
   add_dependencies(nrniv_lib help_data_dat)
+  # also ensure help_data.dat is copied to the install location
+  install(FILES ${PROJECT_BINARY_DIR}/lib/python/neuron/help_data.dat DESTINATION lib/python/neuron)
 endif()
+
+include("${CODING_CONV_CMAKE}/build-time-copy.cmake") # cpp_cc_build_time_copy
+function(copy_share_subdir_at_build_time)
+  cmake_parse_arguments(opt "" "SUBDIR;TARGET" "" ${ARGN})
+  set(src_dir "${PROJECT_SOURCE_DIR}/share/${opt_SUBDIR}")
+  set(tgt_dir "${NRN_BUILD_SHARE_DIR}/${opt_SUBDIR}")
+  file(
+    GLOB_RECURSE files_to_copy
+    LIST_DIRECTORIES false
+    RELATIVE "${src_dir}"
+    CONFIGURE_DEPENDS "${src_dir}/*")
+  foreach(file_to_copy ${files_to_copy})
+    cpp_cc_build_time_copy(
+      INPUT "${src_dir}/${file_to_copy}"
+      OUTPUT "${tgt_dir}/${file_to_copy}"
+      NO_TARGET)
+    list(APPEND files_to_depend_on "${tgt_dir}/${file_to_copy}")
+  endforeach()
+  add_custom_target(
+    ${opt_TARGET}
+    COMMENT "Copying ${src_dir} to ${tgt_dir}"
+    DEPENDS ${files_to_depend_on})
+endfunction()
+copy_share_subdir_at_build_time(SUBDIR demo TARGET copy_share_demo_to_build)
+copy_share_subdir_at_build_time(SUBDIR lib TARGET copy_share_lib_to_build)
 
 # =============================================================================
 # Add tests if enabled
@@ -813,15 +827,24 @@ if(NRN_ENABLE_TESTS)
     elseif(NOT PYTEST_COV_FOUND)
       message(INFO "pytest-cov package not installed. Python coverage will not be generated.")
     endif()
-  else() # share/demo still required for testing
-    add_custom_target(
-      copy_demo_to_build
-      COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/share/demo
-              ${NRN_BUILD_SHARE_DIR}/demo
-      COMMENT "Copying ${PROJECT_SOURCE_DIR}/share/demo to ${NRN_BUILD_SHARE_DIR}"
-      VERBATIM)
-    add_dependencies(nrniv_lib copy_demo_to_build)
   endif()
+  add_dependencies(nrniv_lib copy_share_demo_to_build)
+  # Execute neurondemo as part of the build because it lazily calls nrnivmodl. If we don't do this
+  # then test_neurondemo.py will run nrnivmodl in a clean build, and report compilation warnings as
+  # unexpected stderr.
+  set(neurondemo_prefix
+      "${PROJECT_BINARY_DIR}/share/nrn/demo/release/${CMAKE_HOST_SYSTEM_PROCESSOR}")
+  set(neurondemo_files
+      "${neurondemo_prefix}/special"
+      "${neurondemo_prefix}/${CMAKE_SHARED_LIBRARY_PREFIX}nrnmech${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  add_custom_command(
+    OUTPUT ${neurondemo_files}
+    COMMAND
+      ${CMAKE_COMMAND} -E env ${NRN_RUN_FROM_BUILD_DIR_ENV} ${NRN_SANITIZER_ENABLE_ENVIRONMENT}
+      "${PROJECT_BINARY_DIR}/bin/neurondemo" "-nobanner" "-nogui" "-c" "quit()"
+    VERBATIM)
+  add_custom_target(generate-neurondemo-mechanism-library ALL DEPENDS ${neurondemo_files} nrniv
+                                                                      copy_share_lib_to_build)
   # Initialize the submodule *before* including the test/CMakeLists.txt that uses it. This ensures
   # that the test infrastructure can find the names of the input data files and set up rules to copy
   # them into the test working directories.
@@ -978,7 +1001,7 @@ if(NRN_ENABLE_PYTHON)
       message(STATUS "    EXE       | ${exe}")
       message(STATUS "    INC       | ${include}")
       message(STATUS "    LIB       | ${lib}")
-      message(STATUS "    INSTALL C | ${exe} setup.py install ${NRN_MODULE_INSTALL_OPTIONS}")
+
     endforeach(val)
   endif()
 endif()

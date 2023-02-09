@@ -34,8 +34,6 @@ stages:
         vmImage: 'ubuntu-20.04'
       strategy:
         matrix:
-          Python37:
-            python.version: '3.7'
           Python38:
             python.version: '3.8'
           Python39:
@@ -69,7 +67,6 @@ stages:
             -e NRN_RELEASE_UPLOAD \
             -e NEURON_WHEEL_VERSION \
             -e NRN_BUILD_FOR_UPLOAD=1 \
-            -e SETUPTOOLS_USE_DISTUTILS=stdlib \
             'neuronsimulator/neuron_wheel:latest-gcc9-x86_64' \
             packaging/python/build_wheels.bash linux $(python.version) coreneuron
         displayName: 'Building ManyLinux Wheel'
@@ -90,8 +87,6 @@ stages:
         GPU_BUILD: 'true'
       strategy:
         matrix:
-          Python37:
-            python.version: '3.7'
           Python38:
             python.version: '3.8'
           Python39:
@@ -143,10 +138,6 @@ stages:
         vmImage: 'macOS-11'
       strategy:
         matrix:
-          Python37:
-            python.version: '3.7'
-            python.org.version: '3.7.9'
-            python.installer.name: 'macosx10.9.pkg'
           Python38:
             python.version: '3.8'
             python.org.version: '3.8.10'
@@ -259,6 +250,7 @@ stages:
             displayName: 'Resolve Azure drop URL'
               
           - task: GitHubComment@0
+            continueOnError: true
             inputs:
               gitHubConnection: 'neuronsimulator'
               repositoryName: '$(Build.Repository.Name)'
