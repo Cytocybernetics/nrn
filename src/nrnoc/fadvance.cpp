@@ -71,8 +71,6 @@ void (*nrn_allthread_handle)();
 extern int state_discon_allowed_;
 extern double hoc_epsilon;
 
-static void update(NrnThread*);
-
 double nrnclk[20];
 double nrnval[20];
 
@@ -636,7 +634,7 @@ static int nrndc1_step() {
     setup_tree_matrix(nth);
     nrn_solve(nth);
     second_order_cur(nth);
-    update(nth);  // voltage is at nth->_t + 0.5*nth->_dt
+    nrn_update_voltage(nth);  // voltage is at nth->_t + 0.5*nth->_dt
 
     // Synthetic Cell Mode
     if (nth->neuron_shared->Synthetic_Cell_Mode_ch1) {
